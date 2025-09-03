@@ -1,5 +1,5 @@
 
-.PHONY: help install test run down clean
+.PHONY: help install test run down clean logs shell
 
 # Default target - show help
 help: ## Show this help message
@@ -34,11 +34,13 @@ install: ## Install all requirements to run the service
 	fi
 	@echo "All required tools are installed."
 	@echo "Installing Python dependencies..."
-	@if [ -f "requirements.txt" ]; then \
-		pip3 install -r requirements.txt; \
-	elif [ -f "pyproject.toml" ]; then \
+	@if [ -f "pyproject.toml" ]; then \
 		echo "Using pyproject.toml for dependencies..."; \
-		pip3 install -e .; \
+		if ! command -v uv &> /dev/null; then \
+			echo "uv is not installed. Installing uv..."; \
+			pip3 install uv; \
+		fi; \
+		python3 -m uv sync; \
 	else \
 		echo "No requirements.txt or pyproject.toml found. Skipping Python dependency installation."; \
 	fi
@@ -48,19 +50,11 @@ install: ## Install all requirements to run the service
 test: ## Run tests
 	@echo "Running tests..."
 	@if [ -f "pytest.ini" ] || [ -f "pyproject.toml" ]; then \
-		python -m pytest tests/ -v; \
+		source .venv/bin/activate; \
+		pytest tests/ -v; \
 	else \
 		echo "No pytest configuration found. Please ensure pytest.ini or pyproject.toml exists."; \
 		exit 1; \
-	fi
-
-	@echo "Running tests with coverage..."
-	@if command -v pytest-cov &> /dev/null; then \
-		python -m pytest tests/ --cov=app --cov-report=term-missing --cov-report=html; \
-	else \
-		echo "pytest-cov not installed. Installing..."; \
-		pip install pytest-cov; \
-		python -m pytest tests/ --cov=app --cov-report=term-missing --cov-report=html; \
 	fi
 
 
