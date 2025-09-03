@@ -9,7 +9,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlmodel import SQLModel
 
-from entities import ConversationMessages, Conversations, Messages
+from app.entities import ConversationMessages, Conversations, Messages
 
 
 class DriversInterface(ABC):

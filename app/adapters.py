@@ -4,9 +4,9 @@ from abc import ABC, abstractmethod
 
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 
-from drivers import DriversInterface
-from entities import Messages
-from models import MessageHistoryModel, MessageModel, ResponseModel
+from app.drivers import DriversInterface
+from app.entities import Messages
+from app.models import MessageHistoryModel, MessageModel, ResponseModel
 
 
 class AdaptersInterface(ABC):

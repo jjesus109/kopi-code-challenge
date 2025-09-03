@@ -2,9 +2,9 @@ import asyncio
 import uuid
 from abc import ABC, abstractmethod
 
-from adapters import AdaptersInterface
-from entities import Messages
-from models import MessageModel, ResponseModel
+from app.adapters import AdaptersInterface
+from app.entities import Messages
+from app.models import MessageModel, ResponseModel
 
 
 class CasesInterface(ABC):

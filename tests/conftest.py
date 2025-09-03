@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from entities import Conversations, Messages
-from models import MessageModel
+from app.entities import Conversations, Messages
+from app.models import MessageModel
 
 
 @pytest.fixture

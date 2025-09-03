@@ -1,9 +1,9 @@
 from pydantic_ai import Agent
 
-from adapters import Adapters
-from cases import Cases, CasesInterface
-from db import async_engine
-from drivers import Drivers
+from app.adapters import Adapters
+from app.cases import Cases, CasesInterface
+from app.db import async_engine
+from app.drivers import Drivers
 
 INSTRUCTIONS = """Eres un debatidor profesional. Debes debatir con el usuario sobre el tema que te proporcionen.
 Antes de iniciar con el debate el usuarios te debe de proporcionar un tema.
