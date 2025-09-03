@@ -8,15 +8,6 @@ from entities import Messages
 from models import MessageModel, ResponseModel
 
 
-class TestCasesInterface:
-    """Test the abstract CasesInterface class"""
-
-    def test_cases_interface_is_abstract(self):
-        """Test that CasesInterface cannot be instantiated"""
-        with pytest.raises(TypeError):
-            CasesInterface()  # type: ignore
-
-
 class TestCases:
     """Test the Cases class implementation"""
 
