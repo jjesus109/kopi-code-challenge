@@ -1,10 +1,11 @@
-import asyncio
-import uuid
+import logging
 from abc import ABC, abstractmethod
 
 from app.adapters import AdaptersInterface
 from app.entities import Messages
 from app.models import MessageModel, ResponseModel
+
+log = logging.getLogger(__name__)
 
 
 class CasesInterface(ABC):
@@ -27,10 +28,12 @@ class Cases(CasesInterface):
             conversation_id = await self.adapters.insert_first_conversation_messages(
                 message
             )
+            log.debug(f"First conversation inserted with id: {conversation_id}")
         # else get history from db
         else:
             history = await self.adapters.get_history_messages(conversation_id)
             await self.adapters.insert_message(message, conversation_id)
+            log.debug(f"Continuing conversation with id: {conversation_id}")
         # insert agent response to db
 
         agent_response = await self.adapters.get_response_from_agent(
@@ -40,4 +43,5 @@ class Cases(CasesInterface):
         converted_response = self.adapters.convert_agent_model_to_response(
             conversation_id, message, agent_response, history
         )
+        log.debug(f"Agent response now is stored in db")
         return converted_response

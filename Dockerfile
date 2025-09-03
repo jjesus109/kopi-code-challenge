@@ -25,7 +25,7 @@ RUN yum -y update && yum clean metadata && \
     rm -rf /opt/Python-3.11.8* && \
     ln -s $(which python3.11) /usr/local/bin/python3 && \
     python3 -m pip install -U pip
-
+RUN python3 -m pip install -U uv
 ENV PYTHONPATH "/app"
 COPY pyproject.toml .
 COPY uv.lock .
@@ -35,4 +35,4 @@ WORKDIR /app
 RUN adduser -m userapp && chown -R userapp:userapp /app
 USER userapp
 
-CMD ["python3", "/app/app/main.py" ]
+CMD ["uv", "run", "/app/app/main.py" ]
