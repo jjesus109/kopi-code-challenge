@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: kopi_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kopi_chat
+      POSTGRES_USER: kopi_user
+      POSTGRES_PASSWORD: kopi_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kopi_user -d kopi_chat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kopi_network
+
+  # FastAPI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kopi_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: kopi_user
+      DB_PASSWORD: kopi_password
+      DB_NAME: kopi_chat
+      
+      # Application configuration
+      PORT: 8000
+      HOST: 0.0.0.0
+      LOG_LEVEL: INFO
+      
+      # Google API Key 
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-your_google_api_key_here}
+      
+      # Python settings
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./app:/app/app:ro  # Mount app code for development
+      - ./logs:/app/logs   # Mount logs directory
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/openapi.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kopi_network
+    command: ["uv", "run", "python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  kopi_network:
+    driver: bridge
