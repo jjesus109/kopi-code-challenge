@@ -1,8 +1,10 @@
 import logging
 from abc import ABC, abstractmethod
 
+from fastapi import HTTPException
+
 from app.adapters import AdaptersInterface
-from app.entities import Messages
+from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
 from app.models import MessageModel, ResponseModel
 
 log = logging.getLogger(__name__)
@@ -25,23 +27,40 @@ class Cases(CasesInterface):
         history = []
         if conversation_id is None:
             # insert first conversation
-            conversation_id = await self.adapters.insert_first_conversation_messages(
-                message
-            )
-            log.debug(f"First conversation inserted with id: {conversation_id}")
-        # else get history from db
+            try:
+                conversation_id = (
+                    await self.adapters.insert_first_conversation_messages(message)
+                )
+                log.debug(f"First conversation inserted with id: {conversation_id}")
+            except DatabaseError as e:
+                log.error(f"Database error on inserting first conversation: {e}")
+                raise HTTPException(status_code=500)
+        # if nor first message, get history from db
         else:
-            history = await self.adapters.get_history_messages(conversation_id)
-            await self.adapters.insert_message(message, conversation_id)
+            try:
+                history = await self.adapters.get_history_messages(conversation_id)
+            except NoMessagesFoundError:
+                log.debug(f"No messages found for conversation id: {conversation_id}")
+                raise HTTPException(
+                    status_code=404, detail="No messages found for this conversation"
+                )
+            try:
+                await self.adapters.insert_message(message, conversation_id)
+            except DatabaseError as e:
+                log.error(f"Database error on inserting message: {e}")
+                raise HTTPException(status_code=500)
             log.debug(f"Continuing conversation with id: {conversation_id}")
         # insert agent response to db
-
-        agent_response = await self.adapters.get_response_from_agent(
-            message, conversation_id, history
-        )
+        try:
+            agent_response = await self.adapters.get_response_from_agent(
+                message, conversation_id, history
+            )
+        except ModelExecutionError as e:
+            log.error(f"Model execution error on getting response from agent: {e}")
+            raise HTTPException(status_code=500)
         # convert agent response to response model object
         converted_response = self.adapters.convert_agent_model_to_response(
-            conversation_id, message, agent_response, history
+            conversation_id, message, agent_response, history, history_limit=5
         )
         log.debug(f"Agent response now is stored in db")
         return converted_response

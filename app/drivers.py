@@ -1,7 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
 
-from fastapi import HTTPException
 from pydantic_ai import Agent
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelMessage
@@ -97,12 +96,6 @@ class Drivers(DriversInterface):
 
             result = await session.execute(stmt)
             messages: list[Messages] = result.scalars().all()
-
-            if not messages:
-                raise HTTPException(
-                    status_code=404, detail="No messages found for this conversation"
-                )
-
             return messages
 
     async def get_response_from_agent(

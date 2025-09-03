@@ -2,19 +2,17 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import HTTPException
+from pytest import LogCaptureFixture
 
-from cases import Cases, CasesInterface
-from entities import Messages
-from models import MessageModel, ResponseModel
+from app.cases import Cases, CasesInterface
+from app.entities import Messages
+from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
+from app.models import MessageModel, ResponseModel
 
 
 class TestCases:
     """Test the Cases class implementation"""
-
-    def test_init_with_adapters(self, mock_adapters_interface: AsyncMock) -> None:
-        """Test that Cases initializes correctly with adapters"""
-        cases = Cases(mock_adapters_interface)
-        assert cases.adapters == mock_adapters_interface
 
     @pytest.mark.asyncio
     async def test_get_response_first_message_no_conversation(
@@ -58,8 +56,29 @@ class TestCases:
             sample_message_model_no_conversation,
             mock_agent_response,
             [],
+            history_limit=5,
         )
         assert result == mock_response_model
+
+    @pytest.mark.asyncio
+    async def test_get_response_first_message_database_error(
+        self,
+        mock_adapters_interface: AsyncMock,
+        sample_message_model_no_conversation: MessageModel,
+    ) -> None:
+        """Test that HTTPException 500 is raised when DatabaseError occurs during first conversation insertion"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        mock_adapters_interface.insert_first_conversation_messages.side_effect = (
+            DatabaseError("Database failed")
+        )
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model_no_conversation)
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "Internal Server Error"
 
     @pytest.mark.asyncio
     async def test_get_response_existing_conversation(
@@ -104,9 +123,54 @@ class TestCases:
             sample_message_model, conversation_id, history
         )
         mock_adapters_interface.convert_agent_model_to_response.assert_called_once_with(
-            conversation_id, sample_message_model, mock_agent_response, history
+            conversation_id,
+            sample_message_model,
+            mock_agent_response,
+            history,
+            history_limit=5,
         )
         assert result == mock_response_model
+
+    @pytest.mark.asyncio
+    async def test_get_response_existing_conversation_no_messages_found(
+        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+    ) -> None:
+        """Test that HTTPException 404 is raised when NoMessagesFoundError occurs during get_history_messages"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        conversation_id = uuid.uuid4()
+        sample_message_model.conversation_id = conversation_id
+        mock_adapters_interface.get_history_messages.side_effect = NoMessagesFoundError
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "No messages found for this conversation"
+
+    @pytest.mark.asyncio
+    async def test_get_response_existing_conversation_insert_message_database_error(
+        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+    ) -> None:
+        """Test that HTTPException 500 is raised when DatabaseError occurs during message insertion"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        conversation_id = uuid.uuid4()
+        sample_message_model.conversation_id = conversation_id
+        history = [Messages(content="Previous message", role="user-prompt")]
+
+        mock_adapters_interface.get_history_messages.return_value = history
+        mock_adapters_interface.insert_message.side_effect = DatabaseError(
+            "Insert failed"
+        )
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model)
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "Internal Server Error"
 
     @pytest.mark.asyncio
     async def test_get_response_with_empty_history(
@@ -147,9 +211,37 @@ class TestCases:
             sample_message_model, conversation_id, []
         )
         mock_adapters_interface.convert_agent_model_to_response.assert_called_once_with(
-            conversation_id, sample_message_model, mock_agent_response, []
+            conversation_id,
+            sample_message_model,
+            mock_agent_response,
+            [],
+            history_limit=5,
         )
         assert result == mock_response_model
+
+    @pytest.mark.asyncio
+    async def test_get_response_model_execution_error(
+        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+    ) -> None:
+        """Test that HTTPException 500 is raised when ModelExecutionError occurs during get_response_from_agent"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        conversation_id = uuid.uuid4()
+        sample_message_model.conversation_id = conversation_id
+        history = [Messages(content="Previous message", role="user-prompt")]
+
+        mock_adapters_interface.get_history_messages.return_value = history
+        mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.side_effect = (
+            ModelExecutionError("Model failed")
+        )
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model)
+
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "Internal Server Error"
 
     @pytest.mark.asyncio
     async def test_get_response_with_complex_history(
@@ -198,7 +290,11 @@ class TestCases:
             sample_message_model, conversation_id, history
         )
         mock_adapters_interface.convert_agent_model_to_response.assert_called_once_with(
-            conversation_id, sample_message_model, mock_agent_response, history
+            conversation_id,
+            sample_message_model,
+            mock_agent_response,
+            history,
+            history_limit=5,
         )
         assert result == mock_response_model
 
@@ -279,3 +375,81 @@ class TestCases:
         assert called_message == message_model
         assert called_message.message == test_message
         assert called_message.conversation_id == test_conversation_id
+
+    @pytest.mark.asyncio
+    async def test_get_response_error_logging(
+        self,
+        mock_adapters_interface: AsyncMock,
+        sample_message_model: MessageModel,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test that errors are properly logged when exceptions occur"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        conversation_id = uuid.uuid4()
+        sample_message_model.conversation_id = conversation_id
+        mock_adapters_interface.get_history_messages.return_value = []
+        mock_adapters_interface.insert_message.side_effect = DatabaseError(
+            "Database failed"
+        )
+
+        # Act & Assert
+        with pytest.raises(HTTPException):
+            await cases.get_response(sample_message_model)
+
+        # Check that error was logged
+        assert "Database error on inserting message: Database failed" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_get_response_first_message_error_logging(
+        self,
+        mock_adapters_interface: AsyncMock,
+        sample_message_model_no_conversation: MessageModel,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test that errors are properly logged when exceptions occur during first conversation"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        mock_adapters_interface.insert_first_conversation_messages.side_effect = (
+            DatabaseError("Database failed")
+        )
+
+        # Act & Assert
+        with pytest.raises(HTTPException):
+            await cases.get_response(sample_message_model_no_conversation)
+
+        # Check that error was logged
+        assert (
+            "Database error on inserting first conversation: Database failed"
+            in caplog.text
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_response_model_error_logging(
+        self,
+        mock_adapters_interface: AsyncMock,
+        sample_message_model: MessageModel,
+        caplog: LogCaptureFixture,
+    ) -> None:
+        """Test that errors are properly logged when ModelExecutionError occurs"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        conversation_id = uuid.uuid4()
+        sample_message_model.conversation_id = conversation_id
+        history = [Messages(content="Previous message", role="user-prompt")]
+
+        mock_adapters_interface.get_history_messages.return_value = history
+        mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.side_effect = (
+            ModelExecutionError("Model failed")
+        )
+
+        # Act & Assert
+        with pytest.raises(HTTPException):
+            await cases.get_response(sample_message_model)
+
+        # Check that error was logged
+        assert (
+            "Model execution error on getting response from agent: Model failed"
+            in caplog.text
+        )
