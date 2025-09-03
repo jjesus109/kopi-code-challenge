@@ -70,11 +70,9 @@ class Adapters(AdaptersInterface):
     async def insert_message(
         self, message: MessageModel, conversation_id: uuid.UUID
     ) -> None:
-        metadata_response = {"instructions": None, "kind": "request"}
         formed_message = Messages(
             role="user-prompt",
             content=message.message,
-            metadata_response=str(metadata_response),
         )
         await self.drivers.insert_message(formed_message, conversation_id)
 
@@ -107,8 +105,5 @@ class Adapters(AdaptersInterface):
     async def insert_first_conversation_messages(
         self, message: MessageModel
     ) -> uuid.UUID:
-        formed_message = Messages(
-            role="user-prompt",
-            content=message.message,
-        )
+        formed_message = Messages(role="user-prompt", content=message.message)
         return await self.drivers.insert_first_conversation(formed_message)
