@@ -1,95 +1,262 @@
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cases import Cases
+from cases import Cases, CasesInterface
 from entities import Messages
-from models import MessageModel
+from models import MessageModel, ResponseModel
+
+
+class TestCasesInterface:
+    """Test the abstract CasesInterface class"""
+
+    def test_cases_interface_is_abstract(self):
+        """Test that CasesInterface cannot be instantiated"""
+        with pytest.raises(TypeError):
+            CasesInterface()  # type: ignore
 
 
 class TestCases:
-    """Test Cases class implementation"""
+    """Test the Cases class implementation"""
 
-    @pytest.mark.asyncio
-    async def test_insert_message_with_conversation_id(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
-    ) -> None:
-        """Insert message with conversation id"""
+    def test_init_with_adapters(self, mock_adapters_interface: AsyncMock) -> None:
+        """Test that Cases initializes correctly with adapters"""
         cases = Cases(mock_adapters_interface)
-        mock_adapters_interface.insert_message.return_value = None
-        await cases.insert_message(sample_message_model)
-        mock_adapters_interface.insert_message.assert_called_once_with(
-            sample_message_model
-        )
+        assert cases.adapters == mock_adapters_interface
 
     @pytest.mark.asyncio
-    async def test_insert_message_without_conversation_id(
+    async def test_get_response_first_message_no_conversation(
         self,
         mock_adapters_interface: AsyncMock,
         sample_message_model_no_conversation: MessageModel,
     ) -> None:
-        """Insert a message without conversation_id"""
+        """Test get_response with first message (no conversation_id)"""
+        # Arrange
         cases = Cases(mock_adapters_interface)
-        mock_adapters_interface.insert_message.return_value = None
-        await cases.insert_message(sample_message_model_no_conversation)
+        new_conversation_id = uuid.uuid4()
+        mock_agent_response = "Hello! How can I help you today?"
+        mock_response_model = ResponseModel(
+            conversation_id=new_conversation_id,
+            message=[],
+        )
+
+        # Mock the adapter methods
+        mock_adapters_interface.insert_first_conversation_messages.return_value = (
+            new_conversation_id
+        )
+        mock_adapters_interface.get_response_from_agent.return_value = (
+            mock_agent_response
+        )
+        mock_adapters_interface.convert_agent_model_to_response.return_value = (
+            mock_response_model
+        )
+
+        # Act
+        result = await cases.get_response(sample_message_model_no_conversation)
+
         # Assert
-        mock_adapters_interface.insert_message.assert_called_once_with(
+        mock_adapters_interface.insert_first_conversation_messages.assert_called_once_with(
             sample_message_model_no_conversation
         )
-
-    @pytest.mark.asyncio
-    async def test_get_messages_success(
-        self, mock_adapters_interface: AsyncMock
-    ) -> None:
-        """Successful message retrieval through adapters"""
-        cases = Cases(mock_adapters_interface)
-        conversation_id = uuid.uuid4()
-        limit = 15
-        expected_messages: list[Messages] = [
-            Messages(content="Message 1", role="user"),
-            Messages(content="Message 2", role="assistant"),
-            Messages(content="Message 3", role="user"),
-        ]
-        mock_adapters_interface.get_messages.return_value = expected_messages
-        result = await cases.get_messages(conversation_id, limit)
-        # Assert
-        mock_adapters_interface.get_messages.assert_called_once_with(
-            conversation_id, limit
+        mock_adapters_interface.get_response_from_agent.assert_called_once_with(
+            sample_message_model_no_conversation, new_conversation_id, []
         )
-        assert result == expected_messages
+        mock_adapters_interface.convert_agent_model_to_response.assert_called_once_with(
+            new_conversation_id,
+            sample_message_model_no_conversation,
+            mock_agent_response,
+            [],
+        )
+        assert result == mock_response_model
 
     @pytest.mark.asyncio
-    async def test_get_messages_default_limit(
-        self, mock_adapters_interface: AsyncMock
+    async def test_get_response_existing_conversation(
+        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
     ) -> None:
-        """Get messages with default limit"""
+        """Test get_response with existing conversation"""
+        # Arrange
         cases = Cases(mock_adapters_interface)
         conversation_id = uuid.uuid4()
-        expected_messages = [Messages(content="Test message", role="user")]
-        mock_adapters_interface.get_messages.return_value = expected_messages
-        result = await cases.get_messages(conversation_id)
+        sample_message_model.conversation_id = conversation_id
+        mock_agent_response = "I understand your question."
+        mock_response_model = ResponseModel(
+            conversation_id=conversation_id,
+            message=[],
+        )
+        history = [
+            Messages(content="Previous message", role="user-prompt"),
+            Messages(content="Previous response", role="agent"),
+        ]
+
+        # Mock the adapter methods
+        mock_adapters_interface.get_history_messages.return_value = history
+        mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.return_value = (
+            mock_agent_response
+        )
+        mock_adapters_interface.convert_agent_model_to_response.return_value = (
+            mock_response_model
+        )
+
+        # Act
+        result = await cases.get_response(sample_message_model)
+
         # Assert
-        mock_adapters_interface.get_messages.assert_called_once_with(conversation_id, 5)
-        assert result == expected_messages
+        mock_adapters_interface.get_history_messages.assert_called_once_with(
+            conversation_id
+        )
+        mock_adapters_interface.insert_message.assert_called_once_with(
+            sample_message_model, conversation_id
+        )
+        mock_adapters_interface.get_response_from_agent.assert_called_once_with(
+            sample_message_model, conversation_id, history
+        )
+        mock_adapters_interface.convert_agent_model_to_response.assert_called_once_with(
+            conversation_id, sample_message_model, mock_agent_response, history
+        )
+        assert result == mock_response_model
 
     @pytest.mark.asyncio
-    async def test_get_messages_empty_result(
-        self, mock_adapters_interface: AsyncMock
+    async def test_get_response_with_empty_history(
+        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
     ) -> None:
-        """Get messages when adapters return empty list"""
+        """Test get_response with empty history"""
+        # Arrange
         cases = Cases(mock_adapters_interface)
         conversation_id = uuid.uuid4()
-        expected_messages: list[Messages] = []
-        mock_adapters_interface.get_messages.return_value = expected_messages
-        result = await cases.get_messages(conversation_id)
+        sample_message_model.conversation_id = conversation_id
+        mock_agent_response = "Hello!"
+        mock_response_model = ResponseModel(
+            conversation_id=conversation_id,
+            message=[],
+        )
+
+        # Mock the adapter methods
+        mock_adapters_interface.get_history_messages.return_value = []
+        mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.return_value = (
+            mock_agent_response
+        )
+        mock_adapters_interface.convert_agent_model_to_response.return_value = (
+            mock_response_model
+        )
+
+        # Act
+        result = await cases.get_response(sample_message_model)
+
         # Assert
-        mock_adapters_interface.get_messages.assert_called_once_with(conversation_id, 5)
-        assert result == expected_messages
+        mock_adapters_interface.get_history_messages.assert_called_once_with(
+            conversation_id
+        )
+        mock_adapters_interface.insert_message.assert_called_once_with(
+            sample_message_model, conversation_id
+        )
+        mock_adapters_interface.get_response_from_agent.assert_called_once_with(
+            sample_message_model, conversation_id, []
+        )
+        mock_adapters_interface.convert_agent_model_to_response.assert_called_once_with(
+            conversation_id, sample_message_model, mock_agent_response, []
+        )
+        assert result == mock_response_model
 
     @pytest.mark.asyncio
-    async def test_insert_message_preserves_message_data(
+    async def test_get_response_with_complex_history(
+        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+    ) -> None:
+        """Test get_response with complex conversation history"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        conversation_id = uuid.uuid4()
+        sample_message_model.conversation_id = conversation_id
+        mock_agent_response = "Based on our conversation..."
+        mock_response_model = ResponseModel(
+            conversation_id=conversation_id,
+            message=[],
+        )
+        history = [
+            Messages(content="First message", role="user-prompt"),
+            Messages(content="First response", role="agent"),
+            Messages(content="Second message", role="user-prompt"),
+            Messages(content="Second response", role="agent"),
+            Messages(content="Third message", role="user-prompt"),
+            Messages(content="Third response", role="agent"),
+        ]
+
+        # Mock the adapter methods
+        mock_adapters_interface.get_history_messages.return_value = history
+        mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.return_value = (
+            mock_agent_response
+        )
+        mock_adapters_interface.convert_agent_model_to_response.return_value = (
+            mock_response_model
+        )
+
+        # Act
+        result = await cases.get_response(sample_message_model)
+
+        # Assert
+        mock_adapters_interface.get_history_messages.assert_called_once_with(
+            conversation_id
+        )
+        mock_adapters_interface.insert_message.assert_called_once_with(
+            sample_message_model, conversation_id
+        )
+        mock_adapters_interface.get_response_from_agent.assert_called_once_with(
+            sample_message_model, conversation_id, history
+        )
+        mock_adapters_interface.convert_agent_model_to_response.assert_called_once_with(
+            conversation_id, sample_message_model, mock_agent_response, history
+        )
+        assert result == mock_response_model
+
+    def test_cases_inherits_from_interface(self):
+        """Test that Cases class inherits from CasesInterface"""
+        assert issubclass(Cases, CasesInterface)
+
+    def test_cases_has_required_methods(self):
+        """Test that Cases class has all required methods"""
+        cases = Cases(MagicMock())
+
+        # Check that required methods exist and are callable
+        assert hasattr(cases, "get_response")
+        assert callable(cases.get_response)
+
+    @pytest.mark.asyncio
+    async def test_cases_delegates_to_adapters(
         self, mock_adapters_interface: AsyncMock
+    ) -> None:
+        """Test that Cases properly delegates all operations to adapters"""
+        # Arrange
+        cases = Cases(mock_adapters_interface)
+        conversation_id = uuid.uuid4()
+        message_model = MessageModel(message="Test", conversation_id=conversation_id)
+        mock_response = ResponseModel(conversation_id=conversation_id, message=[])
+
+        # Mock adapter methods
+        mock_adapters_interface.get_history_messages.return_value = []
+        mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.return_value = "Test response"
+        mock_adapters_interface.convert_agent_model_to_response.return_value = (
+            mock_response
+        )
+
+        # Act
+        result = await cases.get_response(message_model)
+
+        # Assert that all adapter methods were called
+        assert mock_adapters_interface.get_history_messages.call_count == 1
+        assert mock_adapters_interface.insert_message.call_count == 1
+        assert mock_adapters_interface.get_response_from_agent.call_count == 1
+        assert mock_adapters_interface.convert_agent_model_to_response.call_count == 1
+
+        # Verify the result
+        assert result == mock_response
+
+    @pytest.mark.asyncio
+    async def test_get_response_preserves_message_data(
+        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
     ) -> None:
         """Test that message data is preserved when passed to adapters"""
         # Arrange
@@ -100,13 +267,20 @@ class TestCases:
         message_model = MessageModel(
             conversation_id=test_conversation_id, message=test_message
         )
+        mock_response = ResponseModel(conversation_id=test_conversation_id, message=[])
 
+        # Mock adapter methods
+        mock_adapters_interface.get_history_messages.return_value = []
         mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.return_value = "Test response"
+        mock_adapters_interface.convert_agent_model_to_response.return_value = (
+            mock_response
+        )
 
         # Act
-        await cases.insert_message(message_model)
+        await cases.get_response(message_model)
 
-        # Assert
+        # Assert that the message model passed to adapters is exactly the same
         mock_adapters_interface.insert_message.assert_called_once()
         called_message = mock_adapters_interface.insert_message.call_args[0][0]
 
