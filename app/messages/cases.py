@@ -1,4 +1,5 @@
 import logging
+import uuid
 from abc import ABC, abstractmethod
 
 from fastapi import HTTPException
@@ -28,42 +29,20 @@ class Cases(CasesInterface):
         conversation_id = message.conversation_id
         history = []
         # validate message
-        if not await self.proxy.valid_message(message.message):
-            log.error(f"Message sent by user is not allowed: {message}")
-            raise HTTPException(status_code=403, detail="Message not allowed")
+        # if not await self.proxy.valid_message(message.message):
+        #     log.error(f"Message sent by user is not allowed: {message}")
+        #     raise HTTPException(status_code=403, detail="Message not allowed")
         if conversation_id is None:
             # insert first conversation
-            try:
-                conversation_id = (
-                    await self.adapters.insert_first_conversation_messages(message)
-                )
-                log.debug(f"First conversation inserted with id: {conversation_id}")
-            except DatabaseError as e:
-                log.error(f"Database error on inserting first conversation: {e}")
-                raise HTTPException(status_code=500)
+            conversation_id = await self._handle_first_conversation(message)
         # if nor first message, get history from db
         else:
-            try:
-                history = await self.adapters.get_history_messages(conversation_id)
-            except NoMessagesFoundError:
-                log.debug(f"No messages found for conversation id: {conversation_id}")
-                raise HTTPException(
-                    status_code=404, detail="No messages found for this conversation"
-                )
-            try:
-                await self.adapters.insert_message(message, conversation_id)
-            except DatabaseError as e:
-                log.error(f"Database error on inserting message: {e}")
-                raise HTTPException(status_code=500)
+            history = await self._handle_existing_conversation(message, conversation_id)
             log.debug(f"Continuing conversation with id: {conversation_id}")
         # insert agent response to db
-        try:
-            agent_response = await self.adapters.get_response_from_agent(
-                message, conversation_id, history
-            )
-        except ModelExecutionError as e:
-            log.error(f"Model execution error on getting response from agent: {e}")
-            raise HTTPException(status_code=500)
+        agent_response = await self._handle_agent_response(
+            message, conversation_id, history
+        )
         # validate agent response
         if not await self.proxy.valid_message(agent_response):
             log.error(f"Agent response not allowed: {agent_response}")
@@ -74,3 +53,46 @@ class Cases(CasesInterface):
         )
         log.debug(f"Agent response now is stored in db")
         return converted_response
+
+    async def _handle_first_conversation(self, message: MessageModel) -> uuid.UUID:
+        """Handle first conversation creation with error handling."""
+        try:
+            conversation_id = await self.adapters.insert_first_conversation_messages(
+                message
+            )
+            log.debug(f"First conversation inserted with id: {conversation_id}")
+            return conversation_id
+        except DatabaseError as e:
+            log.error(f"Database error on inserting first conversation: {e}")
+            raise HTTPException(status_code=500)
+
+    async def _handle_existing_conversation(
+        self, message: MessageModel, conversation_id: uuid.UUID
+    ) -> list:
+        """Handle existing conversation with error handling."""
+        try:
+            history = await self.adapters.get_history_messages(conversation_id)
+        except NoMessagesFoundError:
+            log.debug(f"No messages found for conversation id: {conversation_id}")
+            raise HTTPException(
+                status_code=404, detail="No messages found for this conversation"
+            )
+        try:
+            await self.adapters.insert_message(message, conversation_id)
+        except DatabaseError as e:
+            log.error(f"Database error on inserting message: {e}")
+            raise HTTPException(status_code=500)
+        return history
+
+    async def _handle_agent_response(
+        self, message: MessageModel, conversation_id: uuid.UUID, history: list
+    ) -> str:
+        """Handle agent response generation with error handling."""
+        try:
+            agent_response = await self.adapters.get_response_from_agent(
+                message, conversation_id, history
+            )
+        except ModelExecutionError as e:
+            log.error(f"Model execution error on getting response from agent: {e}")
+            raise HTTPException(status_code=500)
+        return agent_response

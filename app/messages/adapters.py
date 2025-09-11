@@ -3,6 +3,7 @@ import uuid
 from abc import ABC, abstractmethod
 
 from pydantic_ai import UnexpectedModelBehavior
+from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -83,10 +84,7 @@ class Adapters(AdaptersInterface):
             content=message.message,
             conversation_id=conversation_id,
         )
-        try:
-            await self.drivers.insert_message(formed_message)
-        except SQLAlchemyError as e:
-            raise DatabaseError from e
+        await self._insert_message(formed_message)
 
     async def get_response_from_agent(
         self, message: MessageModel, conversation_id: uuid.UUID, history: list[Messages]
@@ -100,7 +98,7 @@ class Adapters(AdaptersInterface):
                 )
         try:
             agent_response = await self.drivers.get_response_from_agent(
-                message.message, history_to_agent
+                message, history
             )
         except UnexpectedModelBehavior as e:
             raise ModelExecutionError from e
@@ -113,17 +111,11 @@ class Adapters(AdaptersInterface):
             metadata_response=metadata_response.decode(),
             conversation_id=conversation_id,
         )
-        try:
-            await self.drivers.insert_message(formed_message)
-        except SQLAlchemyError as e:
-            raise DatabaseError from e
+        await self._insert_message(formed_message)
         return str_agent_response
 
     async def get_history_messages(self, conversation_id: uuid.UUID) -> list[Messages]:
-        try:
-            message_history = await self.drivers.get_messages(conversation_id)
-        except SQLAlchemyError as e:
-            raise DatabaseError from e
+        message_history = await self._get_messages_from_db(conversation_id)
         if not message_history:
             raise NoMessagesFoundError
         return message_history
@@ -137,6 +129,28 @@ class Adapters(AdaptersInterface):
                 formed_message
             )
         except SQLAlchemyError as e:
-            print(e)
             raise DatabaseError from e
         return conversation_id
+
+    async def _get_agent_response(
+        self, message: str, history: list[ModelMessage]
+    ) -> AgentRunResult:
+        """Get response from agent with model error handling."""
+        try:
+            return await self.drivers.get_response_from_agent(message, history)
+        except UnexpectedModelBehavior as e:
+            raise ModelExecutionError from e
+
+    async def _insert_message(self, message: Messages) -> None:
+        """Insert agent message with database error handling."""
+        try:
+            await self.drivers.insert_message(message)
+        except SQLAlchemyError as e:
+            raise DatabaseError from e
+
+    async def _get_messages_from_db(self, conversation_id: uuid.UUID) -> list[Messages]:
+        """Get messages from database with error handling."""
+        try:
+            return await self.drivers.get_messages(conversation_id)
+        except SQLAlchemyError as e:
+            raise DatabaseError from e
