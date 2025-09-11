@@ -8,7 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlmodel import SQLModel
 
-from app.entities import ConversationMessages, Conversations, Messages
+from app.entities import Conversations, Messages
 
 
 class DriversInterface(ABC):
@@ -17,7 +17,6 @@ class DriversInterface(ABC):
     async def insert_message(
         self,
         message: Messages,
-        conversation_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError
 
@@ -44,19 +43,12 @@ class Drivers(DriversInterface):
         self.async_engine = async_engine
         self.agent = agent
 
-    async def insert_message(
-        self, message: Messages, conversation_id: uuid.UUID
-    ) -> None:
+    async def insert_message(self, message: Messages) -> None:
         async with AsyncSession(self.async_engine, expire_on_commit=False) as session:
             async with session.begin():
 
                 session.add(message)
                 await session.flush()
-
-                db_conversation_message = ConversationMessages(
-                    conversation_id=conversation_id, message_id=message.message_id
-                )
-                session.add(db_conversation_message)
                 await session.commit()
 
     async def insert_first_conversation(self, message: Messages) -> uuid.UUID:
@@ -68,16 +60,12 @@ class Drivers(DriversInterface):
                 await session.flush()
 
                 # Insert first message
+                message.conversation_id = db_conversation.conversation_id
                 session.add(message)
                 await session.flush()
-                conversation_id = db_conversation.conversation_id
-                # Insert first conversation message
-                db_conversation_message = ConversationMessages(
-                    conversation_id=conversation_id, message_id=message.message_id
-                )
-                session.add(db_conversation_message)
+
                 await session.commit()
-                return conversation_id
+                return db_conversation.conversation_id
 
     async def get_messages(
         self, conversation_id: uuid.UUID, limit: int = 5
@@ -86,10 +74,10 @@ class Drivers(DriversInterface):
             stmt = (
                 select(Messages)
                 .join(
-                    ConversationMessages,
-                    Messages.message_id == ConversationMessages.message_id,
+                    Conversations,
+                    Messages.conversation_id == Conversations.conversation_id,
                 )
-                .where(ConversationMessages.conversation_id == conversation_id)
+                .where(Conversations.conversation_id == conversation_id)
                 .order_by(desc(Messages.insert_datetime))
                 .limit(limit)
             )

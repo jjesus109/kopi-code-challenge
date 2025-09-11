@@ -15,19 +15,10 @@ class Conversations(SQLModel, table=True):
 class Messages(SQLModel, table=True):
     __tablename__ = "messages"  # type: ignore
     message_id: uuid.UUID = Field(primary_key=True, default_factory=uuid.uuid4)
+    conversation_id: uuid.UUID = Field(foreign_key="conversations.conversation_id")
     content: str
     role: str
     metadata_response: Optional[Dict[str, Any]] = Field(
         default=None, sa_column=Column(Text)
     )
-    insert_datetime: datetime = Field(default_factory=datetime.now)
-
-
-class ConversationMessages(SQLModel, table=True):
-    __tablename__ = "conversations_messages"  # type: ignore
-    conversations_messages_id: Optional[uuid.UUID] = Field(
-        primary_key=True, default_factory=uuid.uuid4
-    )
-    conversation_id: uuid.UUID = Field(foreign_key="conversations.conversation_id")
-    message_id: uuid.UUID = Field(foreign_key="messages.message_id")
     insert_datetime: datetime = Field(default_factory=datetime.now)

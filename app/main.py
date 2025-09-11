@@ -5,10 +5,10 @@ import fastapi
 import uvicorn
 from fastapi import Depends
 
-from app.cases import CasesInterface
 from app.configuration import Configuration
 from app.db import SQLModel, engine
 from app.depends import get_cases
+from app.messages.cases import CasesInterface
 from app.models import MessageModel, ResponseModel
 from app.utils import configure_logger
 

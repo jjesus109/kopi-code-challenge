@@ -11,13 +11,12 @@ dependencies = [
     "uvicorn>=0.35.0",
     "aiosqlite>=0.20.0",
     "greenlet>=3.0.0",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-mock>=3.11.0",
     "httpx>=0.24.0",
     "pydantic-settings>=2.10.1",
     "asyncpg>=0.30.0",
     "psycopg2-binary>=2.9.10",
+    "lock>=2018.3.25.2110",
+    "sync>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -33,5 +32,6 @@ test = [
 dev = [
     "black>=25.1.0",
     "isort>=6.0.1",
+    "pandas>=2.3.2",
     "pre-commit>=4.3.0",
 ]

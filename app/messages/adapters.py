@@ -6,9 +6,9 @@ from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.drivers import DriversInterface
 from app.entities import Messages
 from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
+from app.messages.drivers import DriversInterface
 from app.models import MessageHistoryModel, MessageModel, ResponseModel
 
 USER_ROLE = "user-prompt"
@@ -81,9 +81,10 @@ class Adapters(AdaptersInterface):
         formed_message = Messages(
             role=USER_ROLE,
             content=message.message,
+            conversation_id=conversation_id,
         )
         try:
-            await self.drivers.insert_message(formed_message, conversation_id)
+            await self.drivers.insert_message(formed_message)
         except SQLAlchemyError as e:
             raise DatabaseError from e
 
@@ -110,9 +111,10 @@ class Adapters(AdaptersInterface):
             role=AGENT_ROLE,
             content=str_agent_response,
             metadata_response=metadata_response.decode(),
+            conversation_id=conversation_id,
         )
         try:
-            await self.drivers.insert_message(formed_message, conversation_id)
+            await self.drivers.insert_message(formed_message)
         except SQLAlchemyError as e:
             raise DatabaseError from e
         return str_agent_response
@@ -135,5 +137,6 @@ class Adapters(AdaptersInterface):
                 formed_message
             )
         except SQLAlchemyError as e:
+            print(e)
             raise DatabaseError from e
         return conversation_id
