@@ -5,7 +5,7 @@ from pydantic_ai import Agent
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelMessage
 from sqlalchemy import desc, select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import SQLModel
 
 from app.entities import Conversations, Messages
@@ -39,12 +39,12 @@ class DriversInterface(ABC):
 
 class Drivers(DriversInterface):
 
-    def __init__(self, async_engine: AsyncEngine, agent: Agent):
-        self.async_engine = async_engine
+    def __init__(self, async_session: AsyncSession, agent: Agent):
+        self.async_session = async_session
         self.agent = agent
 
     async def insert_message(self, message: Messages) -> None:
-        async with AsyncSession(self.async_engine, expire_on_commit=False) as session:
+        async with self.async_session as session:
             async with session.begin():
 
                 session.add(message)
@@ -52,7 +52,7 @@ class Drivers(DriversInterface):
                 await session.commit()
 
     async def insert_first_conversation(self, message: Messages) -> uuid.UUID:
-        async with AsyncSession(self.async_engine, expire_on_commit=False) as session:
+        async with self.async_session as session:
             async with session.begin():
                 # insert first conversation item
                 db_conversation = Conversations()
@@ -70,7 +70,7 @@ class Drivers(DriversInterface):
     async def get_messages(
         self, conversation_id: uuid.UUID, limit: int = 5
     ) -> list[Messages]:
-        async with AsyncSession(self.async_engine, expire_on_commit=False) as session:
+        async with self.async_session as session:
             stmt = (
                 select(Messages)
                 .join(

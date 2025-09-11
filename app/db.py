@@ -1,5 +1,4 @@
-# db.py
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlmodel import SQLModel, create_engine
 
 from app import entities
@@ -19,3 +18,4 @@ engine = create_engine(sync_url)
 
 # Async engine for async operations
 async_engine = create_async_engine(async_url, echo=False)
+async_session = AsyncSession(async_engine, expire_on_commit=False)

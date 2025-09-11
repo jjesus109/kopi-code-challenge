@@ -70,6 +70,16 @@ run: ## Run the service and all related services in Docker
 		exit 1; \
 	fi
 
+restart: ## Restart the service and all related services in Docker
+	@echo "Restarting services with Docker Compose..."
+	@if [ -f "docker-compose.yml" ]; then \
+		docker-compose restart; \
+		echo "Services restarted."; \
+		docker-compose logs -f; \
+	else \
+		echo "docker-compose.yml not found. Please ensure it exists."; \
+		exit 1; \
+	fi
 
 
 logs: ## Show logs from running services
