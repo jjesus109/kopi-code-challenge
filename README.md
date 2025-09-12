@@ -10,14 +10,34 @@ and using this data model
 
 ![C4 Model](docs/images/data-model.png?raw=true)
 
-The App was created following a clean architecture, made by 4 different layers
+### Main layer
+
+The App was created following a clean architecture, made by 4 different layers:
 
 - Entities: Here lives the data structures used to comunicate between all the layers
 - Drivers: Here are all the  connections to external resources as database and connection to LLM
 - Adapters: Is the bridge with drivers that help us to manage all the drivers and add the logic to accomplish business needs
 - Cases: Here lives the business logic, using the adapters will help to achive the business needs.
 
-Also we have some other files as:
+### Proxy Component
+Also the app has a proxy component that helps to validate if the user input or LLM response are valid, valid means that doesn't contains and attack to the LLM. The categories covered are:
+
+- Prompt Injection.
+- Insecure Output Handling
+- Model Denial of Service
+- Insecure Plugin Design
+- Excessive Agency
+- Sensitive Info Disclosure
+
+This component its divided in 3 layers:
+
+- Proxy: Has the main logic to know what to do with the results given by the policy
+- Policy: Process the messages received and determine if the message is valid or not
+- Drivers: Manage all the external connections to the agent and the mocked external system that notifies when a message wants to reveal sensitive data or change made something different from the original instructions
+
+
+### Extras
+Also th project have other files as:
 
 - errors: Where all custom errors are created to manage some possible scenarios in the flows
 - models: Where the request models lives 
@@ -41,5 +61,9 @@ the service. if some tool is required for the installation, you must detect its 
 `make run`: run the service and all related services (such as a db) in Docker
 
 `make down`: teardown of all running services
+
+`make restart`: Restart the services and show the live logs of the containers
+
+`make logs`: Show the logs of the running containers
 
 `make clean`: teardown and removal of all containers
