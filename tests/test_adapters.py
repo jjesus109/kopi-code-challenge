@@ -5,9 +5,9 @@ import pytest
 from pydantic_ai import UnexpectedModelBehavior
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.adapters import Adapters
 from app.entities import Messages
 from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
+from app.messages.adapters import Adapters
 from app.models import MessageModel, ResponseModel
 
 

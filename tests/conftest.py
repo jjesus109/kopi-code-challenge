@@ -71,6 +71,14 @@ def mock_adapters_interface() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_proxy_interface() -> AsyncMock:
+    """Create a mock ProxyInterface for testing"""
+    mock = AsyncMock()
+    mock.valid_message = AsyncMock(return_value=True)
+    return mock
+
+
+@pytest.fixture
 def sample_model_response() -> str:
     """Create a sample model response for testing"""
     return '[{"parts":[{"content":"un chiste nuevo","timestamp":"2025-09-03T01:43:49.759895Z","part_kind":"user-prompt"}],"instructions":null,"kind":"request"},{"parts":[{"content":"¡Claro que sí, Pancho! Aquí va otro chiste fresco para ti:\\n\\n¿Qué le dice un jardinero a otro?\\n\\n\\"¿Te has dado cuenta de que ya ha habido **Pancho**s árboles que hemos plantado?\\"\\n\\n¡Espero que te guste, Pancho!","part_kind":"text"}],"usage":{"input_tokens":171,"cache_write_tokens":0,"cache_read_tokens":0,"output_tokens":63,"input_audio_tokens":0,"cache_audio_read_tokens":0,"output_audio_tokens":0,"details":{"text_prompt_tokens":171}},"model_name":"gemini-2.5-flash-lite","timestamp":"2025-09-03T01:43:50.635280Z","kind":"response","provider_name":"google-gla","provider_details":{"finish_reason":"STOP"},"provider_response_id":"Vp23aMHrJMGtz7IPp_vayQo"}]'

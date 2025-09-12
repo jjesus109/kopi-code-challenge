@@ -5,9 +5,9 @@ import pytest
 from fastapi import HTTPException
 from pytest import LogCaptureFixture
 
-from app.cases import Cases, CasesInterface
 from app.entities import Messages
 from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
+from app.messages.cases import Cases, CasesInterface
 from app.models import MessageModel, ResponseModel
 
 
@@ -18,11 +18,12 @@ class TestCases:
     async def test_get_response_first_message_no_conversation(
         self,
         mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
         sample_message_model_no_conversation: MessageModel,
     ) -> None:
         """Test get_response with first message (no conversation_id)"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         new_conversation_id = uuid.uuid4()
         mock_agent_response = "Hello! How can I help you today?"
         mock_response_model = ResponseModel(
@@ -64,11 +65,12 @@ class TestCases:
     async def test_get_response_first_message_database_error(
         self,
         mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
         sample_message_model_no_conversation: MessageModel,
     ) -> None:
         """Test that HTTPException 500 is raised when DatabaseError occurs during first conversation insertion"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         mock_adapters_interface.insert_first_conversation_messages.side_effect = (
             DatabaseError("Database failed")
         )
@@ -82,11 +84,14 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_get_response_existing_conversation(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
     ) -> None:
         """Test get_response with existing conversation"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         mock_agent_response = "I understand your question."
@@ -133,11 +138,14 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_get_response_existing_conversation_no_messages_found(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
     ) -> None:
         """Test that HTTPException 404 is raised when NoMessagesFoundError occurs during get_history_messages"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         mock_adapters_interface.get_history_messages.side_effect = NoMessagesFoundError
@@ -151,11 +159,14 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_get_response_existing_conversation_insert_message_database_error(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
     ) -> None:
         """Test that HTTPException 500 is raised when DatabaseError occurs during message insertion"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         history = [Messages(content="Previous message", role="user-prompt")]
@@ -174,11 +185,14 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_get_response_with_empty_history(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
     ) -> None:
         """Test get_response with empty history"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         mock_agent_response = "Hello!"
@@ -221,11 +235,14 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_get_response_model_execution_error(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
     ) -> None:
         """Test that HTTPException 500 is raised when ModelExecutionError occurs during get_response_from_agent"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         history = [Messages(content="Previous message", role="user-prompt")]
@@ -245,11 +262,14 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_get_response_with_complex_history(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
     ) -> None:
         """Test get_response with complex conversation history"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         mock_agent_response = "Based on our conversation..."
@@ -304,7 +324,7 @@ class TestCases:
 
     def test_cases_has_required_methods(self):
         """Test that Cases class has all required methods"""
-        cases = Cases(MagicMock())
+        cases = Cases(MagicMock(), MagicMock())
 
         # Check that required methods exist and are callable
         assert hasattr(cases, "get_response")
@@ -312,11 +332,11 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_cases_delegates_to_adapters(
-        self, mock_adapters_interface: AsyncMock
+        self, mock_adapters_interface: AsyncMock, mock_proxy_interface: AsyncMock
     ) -> None:
         """Test that Cases properly delegates all operations to adapters"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         message_model = MessageModel(message="Test", conversation_id=conversation_id)
         mock_response = ResponseModel(conversation_id=conversation_id, message=[])
@@ -343,11 +363,14 @@ class TestCases:
 
     @pytest.mark.asyncio
     async def test_get_response_preserves_message_data(
-        self, mock_adapters_interface: AsyncMock, sample_message_model: MessageModel
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
     ) -> None:
         """Test that message data is preserved when passed to adapters"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         test_message = "This is a test message with special characters: !@#$%^&*()"
         test_conversation_id = uuid.uuid4()
 
@@ -380,12 +403,13 @@ class TestCases:
     async def test_get_response_error_logging(
         self,
         mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
         sample_message_model: MessageModel,
         caplog: LogCaptureFixture,
     ) -> None:
         """Test that errors are properly logged when exceptions occur"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         mock_adapters_interface.get_history_messages.return_value = []
@@ -404,12 +428,13 @@ class TestCases:
     async def test_get_response_first_message_error_logging(
         self,
         mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
         sample_message_model_no_conversation: MessageModel,
         caplog: LogCaptureFixture,
     ) -> None:
         """Test that errors are properly logged when exceptions occur during first conversation"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         mock_adapters_interface.insert_first_conversation_messages.side_effect = (
             DatabaseError("Database failed")
         )
@@ -428,12 +453,13 @@ class TestCases:
     async def test_get_response_model_error_logging(
         self,
         mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
         sample_message_model: MessageModel,
         caplog: LogCaptureFixture,
     ) -> None:
         """Test that errors are properly logged when ModelExecutionError occurs"""
         # Arrange
-        cases = Cases(mock_adapters_interface)
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
         history = [Messages(content="Previous message", role="user-prompt")]
