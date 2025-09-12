@@ -24,7 +24,6 @@ class Proxy(ProxyInterface):
         If the action is deny, will return false.
         If the action is warn, will return false. And notify to alert service.
         If the action is allow, will return true.
-        If the action is obfuscate, will return true. And obfuscate the message.
         """
         try:
             policy_action = await self.policy.decide_policy_action(message)

@@ -1,6 +1,6 @@
 from pydantic_ai import Agent
 
-from app.db import async_engine, async_session
+from app.db import get_async_session
 from app.messages.adapters import Adapters
 from app.messages.cases import Cases, CasesInterface
 from app.messages.drivers import Drivers
@@ -58,8 +58,9 @@ def get_proxy() -> ProxyInterface:
     return Proxy(policy=Policy(drivers=ProxyDrivers(agent=proxy_agent)))
 
 
-def get_cases() -> CasesInterface:
+async def get_cases() -> CasesInterface:
     proxy = get_proxy()
+    async_session = get_async_session()
     return Cases(
         adapters=Adapters(drivers=Drivers(async_session, main_agent)),
         proxy=proxy,

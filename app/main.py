@@ -6,7 +6,7 @@ import uvicorn
 from fastapi import Depends
 
 from app.configuration import Configuration
-from app.db import SQLModel, engine
+from app.db import SQLModel, get_async_engine
 from app.depends import get_cases
 from app.messages.cases import CasesInterface
 from app.models import MessageModel, ResponseModel
@@ -22,7 +22,9 @@ responses = {
 
 @asynccontextmanager
 async def lifespan(_app: fastapi.FastAPI) -> AsyncGenerator[None, None]:
-    SQLModel.metadata.create_all(engine)
+    engine = get_async_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
     yield
 
 

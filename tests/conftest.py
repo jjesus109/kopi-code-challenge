@@ -1,12 +1,75 @@
+import os
 import uuid
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from typing import Awaitable
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine
+from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel.pool import StaticPool
 
+os.environ["GOOGLE_API_KEY"] = "test"
+os.environ["PORT"] = "1000"
+os.environ["HOST"] = "test"
+os.environ["LOG_LEVEL"] = "test"
+os.environ["DB_HOST"] = "test"
+os.environ["DB_PORT"] = "test"
+os.environ["DB_USER"] = "test"
+os.environ["DB_PASSWORD"] = "test"
+os.environ["DB_NAME"] = "test"
+
+
+from app.depends import get_cases
 from app.entities import Conversations, Messages
+from app.main import app
+from app.messages.adapters import Adapters
+from app.messages.cases import Cases, CasesInterface
+from app.messages.drivers import Drivers
 from app.models import MessageModel
+from app.proxy.drivers import ProxyDrivers
+from app.proxy.policy import Policy
+from app.proxy.proxy import Proxy
+
+
+@pytest.fixture(name="async_engine")
+async def async_engine_fixture():
+    async_engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with async_engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    return AsyncSession(async_engine, expire_on_commit=False)
+
+
+@pytest.fixture(name="cases")
+async def cases_fixture(async_engine: AsyncSession) -> CasesInterface:
+    main_agent = AsyncMock()
+    main_agent.run.return_value = Mock()
+    main_agent.run.return_value.output = "Mock main agent response"
+    main_agent.run.return_value.new_messages_json.return_value = (
+        b'{"data":"Mock main agent response"}'
+    )
+    proxy_agent = AsyncMock()
+    proxy_agent.run.return_value = AsyncMock()
+    proxy_agent.run.return_value.output = "allow"
+    proxy = Proxy(Policy(ProxyDrivers(proxy_agent)))
+    engine = await async_engine
+    return Cases(adapters=Adapters(Drivers(engine, main_agent)), proxy=proxy)
+
+
+@pytest.fixture(name="client")
+def client_fixture(cases: CasesInterface) -> TestClient:
+    async def get_cases_override() -> CasesInterface:
+        return cases
+
+    app.dependency_overrides[get_cases] = get_cases_override
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

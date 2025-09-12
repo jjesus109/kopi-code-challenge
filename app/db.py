@@ -1,21 +1,23 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlmodel import SQLModel, create_engine
 
 from app import entities
 from app.configuration import Configuration
 
 conf = Configuration()
-sync_url = (
-    f"postgresql://{conf.db_user}:"
-    f"{conf.db_password}@{conf.db_host}:{conf.db_port}/{conf.db_name}"
-)
 async_url = (
     f"postgresql+asyncpg://{conf.db_user}:"
     f"{conf.db_password}@{conf.db_host}:{conf.db_port}/{conf.db_name}"
 )
-# Sync engine for migrations and setup
-engine = create_engine(sync_url)
 
-# Async engine for async operations
-async_engine = create_async_engine(async_url, echo=False)
-async_session = AsyncSession(async_engine, expire_on_commit=False)
+
+def get_async_engine() -> AsyncEngine:
+    return create_async_engine(async_url, echo=False)
+
+
+def get_async_session() -> AsyncSession:
+    # Async engine for async operations
+    async_engine = get_async_engine()
+    async_session = AsyncSession(async_engine, expire_on_commit=False)
+    return async_session
