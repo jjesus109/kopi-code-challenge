@@ -32,7 +32,7 @@ class Cases(CasesInterface):
         # validate message
         if not await self.proxy.valid_message(message.message):
             log.error(f"Message sent by user is not allowed: {message}")
-            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST)
+            raise HTTPException(status_code=HTTPStatus.CONFLICT)
         if conversation_id is None:
             # insert first conversation
             conversation_id = await self._handle_first_conversation(message)
@@ -47,7 +47,7 @@ class Cases(CasesInterface):
         # validate agent response
         if not await self.proxy.valid_message(agent_response):
             log.error(f"Agent response not allowed: {agent_response}")
-            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST)
+            raise HTTPException(status_code=HTTPStatus.CONFLICT)
         # convert agent response to response model object
         converted_response = self.adapters.convert_agent_model_to_response(
             conversation_id, message, agent_response, history, history_limit=5

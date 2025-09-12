@@ -80,7 +80,7 @@ class TestCases:
         with pytest.raises(HTTPException) as exc_info:
             await cases.get_response(sample_message_model_no_conversation)
 
-        assert exc_info.value.status_code == 500
+        assert exc_info.value.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert exc_info.value.detail == "Internal Server Error"
 
     @pytest.mark.asyncio
@@ -181,7 +181,7 @@ class TestCases:
         with pytest.raises(HTTPException) as exc_info:
             await cases.get_response(sample_message_model)
 
-        assert exc_info.value.status_code == 500
+        assert exc_info.value.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert exc_info.value.detail == "Internal Server Error"
 
     @pytest.mark.asyncio
@@ -258,7 +258,7 @@ class TestCases:
         with pytest.raises(HTTPException) as exc_info:
             await cases.get_response(sample_message_model)
 
-        assert exc_info.value.status_code == 500
+        assert exc_info.value.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert exc_info.value.detail == "Internal Server Error"
 
     @pytest.mark.asyncio
@@ -497,7 +497,7 @@ class TestCases:
         with pytest.raises(HTTPException) as exc_info:
             await cases.get_response(sample_message_model)
 
-        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+        assert exc_info.value.status_code == HTTPStatus.CONFLICT
 
         # Verify that proxy validation was called with the user message
         mock_proxy_interface.valid_message.assert_called_once_with(
@@ -511,7 +511,7 @@ class TestCases:
         mock_proxy_interface: AsyncMock,
         sample_message_model: MessageModel,
     ) -> None:
-        """Test that HTTPException 400 is raised when proxy validation fails for agent response"""
+        """Test that HTTPException 409 is raised when proxy validation fails for agent response"""
         # Arrange
         cases = Cases(mock_adapters_interface, mock_proxy_interface)
         conversation_id = uuid.uuid4()
@@ -533,7 +533,7 @@ class TestCases:
         with pytest.raises(HTTPException) as exc_info:
             await cases.get_response(sample_message_model)
 
-        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+        assert exc_info.value.status_code == HTTPStatus.CONFLICT
 
         # Verify that proxy validation was called twice: once for user message, once for agent response
         assert mock_proxy_interface.valid_message.call_count == 2
@@ -554,7 +554,7 @@ class TestCases:
         with pytest.raises(HTTPException) as exc_info:
             await cases.get_response(sample_message_model_no_conversation)
 
-        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+        assert exc_info.value.status_code == HTTPStatus.CONFLICT
 
     @pytest.mark.asyncio
     async def test_get_response_first_message_agent_response_validation_failure(
@@ -584,7 +584,7 @@ class TestCases:
         with pytest.raises(HTTPException) as exc_info:
             await cases.get_response(sample_message_model_no_conversation)
 
-        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+        assert exc_info.value.status_code == HTTPStatus.CONFLICT
 
         # Verify that proxy validation was called twice: once for user message, once for agent response
         assert mock_proxy_interface.valid_message.call_count == 2
