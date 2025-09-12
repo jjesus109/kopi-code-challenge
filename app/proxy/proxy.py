@@ -1,8 +1,12 @@
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from app.errors import ModelExecutionError
 from app.models import MessageModel
 from app.proxy.policy import PolicyInterface
+
+log = logging.getLogger(__name__)
 
 
 class ProxyInterface(ABC):
@@ -22,7 +26,14 @@ class Proxy(ProxyInterface):
         If the action is allow, will return true.
         If the action is obfuscate, will return true. And obfuscate the message.
         """
-        policy_action = await self.policy.decide_policy_action(message)
+        try:
+            policy_action = await self.policy.decide_policy_action(message)
+        except ModelExecutionError as e:
+            log.error(
+                "Model execution error on deciding policy action: Maybe prohibited message received from user or LLM ",
+                e,
+            )
+            return False
         if policy_action == "deny":
             return False
         elif policy_action == "warn":
@@ -31,5 +42,5 @@ class Proxy(ProxyInterface):
         elif policy_action == "allow":
             return True
         else:
-            print("Unknown policy action: ", policy_action)
+            log.warning("Unknown policy action: ", policy_action)
             return False

@@ -2,6 +2,9 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from pydantic_ai import UnexpectedModelBehavior
+
+from app.errors import ModelExecutionError
 from app.models import MessageModel
 from app.proxy.drivers import ProxyDriversInterface
 
@@ -62,8 +65,6 @@ class Policy(PolicyInterface):
         for pattern in prompt_injection_patterns:
             if re.search(pattern, content):
                 return "deny"
-        # Use and LLM call to verify the request is not a prompt injection
-        agent_response = await self.drivers.get_response_from_agent(content)
 
         # 2. PII detection (very basic, can be improved)
         pii_patterns = [
@@ -108,5 +109,9 @@ class Policy(PolicyInterface):
                 return "warn"
 
         # If none of the above, allow
+        try:
+            agent_response = await self.drivers.get_response_from_agent(content)
+        except UnexpectedModelBehavior as e:
+            raise ModelExecutionError from e
         response: str = agent_response.output.lower()
         return response

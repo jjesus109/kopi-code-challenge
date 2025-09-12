@@ -29,13 +29,13 @@ class Cases(CasesInterface):
         conversation_id = message.conversation_id
         history = []
         # validate message
-        # if not await self.proxy.valid_message(message.message):
-        #     log.error(f"Message sent by user is not allowed: {message}")
-        #     raise HTTPException(status_code=403, detail="Message not allowed")
+        if not await self.proxy.valid_message(message.message):
+            log.error(f"Message sent by user is not allowed: {message}")
+            raise HTTPException(status_code=403, detail="Message not allowed")
         if conversation_id is None:
             # insert first conversation
             conversation_id = await self._handle_first_conversation(message)
-        # if nor first message, get history from db
+        # if not first message, get history from db
         else:
             history = await self._handle_existing_conversation(message, conversation_id)
             log.debug(f"Continuing conversation with id: {conversation_id}")
