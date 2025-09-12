@@ -1,4 +1,5 @@
 import uuid
+from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -479,3 +480,126 @@ class TestCases:
             "Model execution error on getting response from agent: Model failed"
             in caplog.text
         )
+
+    @pytest.mark.asyncio
+    async def test_get_response_user_message_validation_failure(
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
+    ) -> None:
+        """Test that HTTPException 400 is raised when proxy validation fails for user message"""
+        # Arrange
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
+        mock_proxy_interface.valid_message.return_value = False
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model)
+
+        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+
+        # Verify that proxy validation was called with the user message
+        mock_proxy_interface.valid_message.assert_called_once_with(
+            sample_message_model.message
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_response_agent_response_validation_failure(
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model: MessageModel,
+    ) -> None:
+        """Test that HTTPException 400 is raised when proxy validation fails for agent response"""
+        # Arrange
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
+        conversation_id = uuid.uuid4()
+        sample_message_model.conversation_id = conversation_id
+        history = [Messages(content="Previous message", role="user-prompt")]
+        mock_agent_response = "This is a prohibited agent response"
+
+        # Mock the adapter methods
+        mock_adapters_interface.get_history_messages.return_value = history
+        mock_adapters_interface.insert_message.return_value = None
+        mock_adapters_interface.get_response_from_agent.return_value = (
+            mock_agent_response
+        )
+
+        # Mock proxy to allow user message but reject agent response
+        mock_proxy_interface.valid_message.side_effect = [True, False]
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model)
+
+        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+
+        # Verify that proxy validation was called twice: once for user message, once for agent response
+        assert mock_proxy_interface.valid_message.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_response_first_message_user_validation_failure(
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model_no_conversation: MessageModel,
+    ) -> None:
+        """Test that HTTPException 400 is raised when proxy validation fails for first message"""
+        # Arrange
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
+        mock_proxy_interface.valid_message.return_value = False
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model_no_conversation)
+
+        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_get_response_first_message_agent_response_validation_failure(
+        self,
+        mock_adapters_interface: AsyncMock,
+        mock_proxy_interface: AsyncMock,
+        sample_message_model_no_conversation: MessageModel,
+    ) -> None:
+        """Test that HTTPException 403 is raised when proxy validation fails for first message agent response"""
+        # Arrange
+        cases = Cases(mock_adapters_interface, mock_proxy_interface)
+        new_conversation_id = uuid.uuid4()
+        mock_agent_response = "This is a prohibited agent response"
+
+        # Mock the adapter methods
+        mock_adapters_interface.insert_first_conversation_messages.return_value = (
+            new_conversation_id
+        )
+        mock_adapters_interface.get_response_from_agent.return_value = (
+            mock_agent_response
+        )
+
+        # Mock proxy to allow user message but reject agent response
+        mock_proxy_interface.valid_message.side_effect = [True, False]
+
+        # Act & Assert
+        with pytest.raises(HTTPException) as exc_info:
+            await cases.get_response(sample_message_model_no_conversation)
+
+        assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST
+
+        # Verify that proxy validation was called twice: once for user message, once for agent response
+        assert mock_proxy_interface.valid_message.call_count == 2
+        mock_proxy_interface.valid_message.assert_any_call(
+            sample_message_model_no_conversation.message
+        )
+        mock_proxy_interface.valid_message.assert_any_call(mock_agent_response)
+
+        # Verify that adapter methods were called up to the point of agent response generation
+        mock_adapters_interface.insert_first_conversation_messages.assert_called_once_with(
+            sample_message_model_no_conversation
+        )
+        mock_adapters_interface.get_response_from_agent.assert_called_once_with(
+            sample_message_model_no_conversation, new_conversation_id, []
+        )
+
+        # Verify that convert_agent_model_to_response was not called since validation failed
+        mock_adapters_interface.convert_agent_model_to_response.assert_not_called()

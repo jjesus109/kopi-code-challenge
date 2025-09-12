@@ -1,6 +1,7 @@
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from http import HTTPStatus
 
 from fastapi import HTTPException
 
@@ -31,7 +32,7 @@ class Cases(CasesInterface):
         # validate message
         if not await self.proxy.valid_message(message.message):
             log.error(f"Message sent by user is not allowed: {message}")
-            raise HTTPException(status_code=403, detail="Message not allowed")
+            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST)
         if conversation_id is None:
             # insert first conversation
             conversation_id = await self._handle_first_conversation(message)
@@ -46,7 +47,7 @@ class Cases(CasesInterface):
         # validate agent response
         if not await self.proxy.valid_message(agent_response):
             log.error(f"Agent response not allowed: {agent_response}")
-            raise HTTPException(status_code=403, detail="Not allowed")
+            raise HTTPException(status_code=HTTPStatus.BAD_REQUEST)
         # convert agent response to response model object
         converted_response = self.adapters.convert_agent_model_to_response(
             conversation_id, message, agent_response, history, history_limit=5
@@ -64,7 +65,7 @@ class Cases(CasesInterface):
             return conversation_id
         except DatabaseError as e:
             log.error(f"Database error on inserting first conversation: {e}")
-            raise HTTPException(status_code=500)
+            raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     async def _handle_existing_conversation(
         self, message: MessageModel, conversation_id: uuid.UUID
@@ -75,13 +76,14 @@ class Cases(CasesInterface):
         except NoMessagesFoundError:
             log.debug(f"No messages found for conversation id: {conversation_id}")
             raise HTTPException(
-                status_code=404, detail="No messages found for this conversation"
+                status_code=HTTPStatus.NOT_FOUND,
+                detail="No messages found for this conversation",
             )
         try:
             await self.adapters.insert_message(message, conversation_id)
         except DatabaseError as e:
             log.error(f"Database error on inserting message: {e}")
-            raise HTTPException(status_code=500)
+            raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
         return history
 
     async def _handle_agent_response(
@@ -94,5 +96,5 @@ class Cases(CasesInterface):
             )
         except ModelExecutionError as e:
             log.error(f"Model execution error on getting response from agent: {e}")
-            raise HTTPException(status_code=500)
+            raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
         return agent_response
