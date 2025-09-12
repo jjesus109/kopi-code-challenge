@@ -16,6 +16,7 @@ CasesDeps = Annotated[CasesInterface, Depends(get_cases)]
 responses = {
     "400": {"description": "Problems with request"},
     "404": {"description": "Conversation not found"},
+    "409": {"description": "Conflict the message received from the user"},
     "500": {"description": "Problems with other services"},
 }
 
