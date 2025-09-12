@@ -7,18 +7,6 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "aiosqlite"
-version = "0.21.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/13/7d/8bca2bf9a247c2c5dfeec1d7a5f40db6518f88d314b8bca9da29670d2671/aiosqlite-0.21.0.tar.gz", hash = "sha256:131bb8056daa3bc875608c631c678cda73922a2d4ba8aec373b19f18c17e7aa3", size = 13454, upload-time = "2025-02-03T07:30:16.235Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/10/6c25ed6de94c49f88a91fa5018cb4c0f3625f31d5be9f771ebe5cc7cd506/aiosqlite-0.21.0-py3-none-any.whl", hash = "sha256:2549cf4057f95f53dcba16f2b64e8e2791d7e1adedb13197dd8ed77bb226d7d0", size = 15792, upload-time = "2025-02-03T07:30:13.6Z" },
-]
-
-[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -427,12 +415,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/b8/21/1e2a441f74a653a14
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/11/114d0a5f4dabbdcedc1125dee0888514c3c3b16d3e9facad87ed96fad97c/isort-6.0.1-py3-none-any.whl", hash = "sha256:2dc5d7f65c9678d94c88dfc29161a320eec67328bc97aad576874cb4be1e9615", size = 94186, upload-time = "2025-02-26T21:13:14.911Z" },
 ]
-
-[[package]]
-name = "lock"
-version = "2018.3.25.2110"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ea/ee/4c7e9740d397abd62b48bfe82f77f57a8984da4f5ba0a3b64930b44ccd8f/lock-2018.3.25.2110.tar.gz", hash = "sha256:cc5ac770930493eed7a8cfd0cf2568a125faf112eb8aa6b6149b3e581523d0c7", size = 3049, upload-time = "2018-03-25T21:12:37.084Z" }
 
 [[package]]
 name = "logfire-api"
@@ -1068,27 +1050,16 @@ wheels = [
 ]
 
 [[package]]
-name = "sync"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/89/72/60d97fe2f6b74993230148bc25106569c6e8ed5292eab46f5f917d120b82/sync-1.0.0.zip", hash = "sha256:9f8e9a5c89dec5e82efaa2ae64a8c6f63690a3c4f4d5f0f84660202306ea078e", size = 6388, upload-time = "2014-12-14T05:42:39.238Z" }
-
-[[package]]
 name = "tech-challenge-response"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "aiosqlite" },
     { name = "asyncpg" },
     { name = "fastapi" },
-    { name = "greenlet" },
-    { name = "httpx" },
-    { name = "lock" },
     { name = "psycopg2-binary" },
     { name = "pydantic-ai-slim", extra = ["google"] },
     { name = "pydantic-settings" },
     { name = "sqlmodel" },
-    { name = "sync" },
     { name = "uvicorn" },
 ]
 
@@ -1108,17 +1079,12 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiosqlite", specifier = ">=0.20.0" },
     { name = "asyncpg", specifier = ">=0.30.0" },
     { name = "fastapi", specifier = ">=0.116.1" },
-    { name = "greenlet", specifier = ">=3.0.0" },
-    { name = "httpx", specifier = ">=0.24.0" },
-    { name = "lock", specifier = ">=2018.3.25.2110" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic-ai-slim", extras = ["google"], specifier = ">=0.8.1" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "sqlmodel", specifier = ">=0.0.24" },
-    { name = "sync", specifier = ">=1.0.0" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 
