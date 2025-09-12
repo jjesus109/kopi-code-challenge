@@ -30,7 +30,7 @@ class Proxy(ProxyInterface):
             policy_action = await self.policy.decide_policy_action(message)
         except ModelExecutionError as e:
             log.error(
-                "Model execution error on deciding policy action: Maybe prohibited message received from user or LLM ",
+                "Model execution error on deciding policy action: Maybe prohibited message received from user or LLM: %s",
                 e,
             )
             return False
@@ -42,5 +42,5 @@ class Proxy(ProxyInterface):
         elif policy_action == "allow":
             return True
         else:
-            log.warning("Unknown policy action: ", policy_action)
+            log.warning("Unknown policy action: %s", policy_action)
             return False

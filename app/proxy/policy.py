@@ -43,7 +43,8 @@ class Policy(PolicyInterface):
         # Lowercase message for easier matching
         content = message.lower()
 
-        # 1. Prompt Injection/Jailbreak detection
+        # 1. Direct Injection
+        # 1.1. Prompt Injection/Jailbreak detection
         prompt_injection_patterns = [
             r"ignore\s+all\s+previous\s+instructions",
             r"disregard\s+previous\s+instructions",
@@ -66,7 +67,7 @@ class Policy(PolicyInterface):
             if re.search(pattern, content):
                 return "deny"
 
-        # 2. PII detection (very basic, can be improved)
+        # 1.2. PII detection (very basic, can be improved)
         pii_patterns = [
             r"\b\d{3}-\d{2}-\d{4}\b",  # SSN
             r"\b\d{16}\b",  # Credit card (very naive)
@@ -76,7 +77,7 @@ class Policy(PolicyInterface):
         ]
         for pattern in pii_patterns:
             if re.search(pattern, content):
-                return "obfuscate"
+                return "deny"
 
         # 3. Hate speech, abuse, profanity (very basic, can be improved)
         abuse_patterns = [
@@ -108,7 +109,7 @@ class Policy(PolicyInterface):
             if re.search(pattern, content):
                 return "warn"
 
-        # If none of the above, allow
+        # If none of the above, request to agents to decide
         try:
             agent_response = await self.drivers.get_response_from_agent(content)
         except UnexpectedModelBehavior as e:
