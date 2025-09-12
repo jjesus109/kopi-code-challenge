@@ -64,7 +64,8 @@ async def cases_fixture(async_engine: AsyncSession) -> CasesInterface:
 @pytest.fixture(name="client")
 def client_fixture(cases: CasesInterface) -> TestClient:
     async def get_cases_override() -> CasesInterface:
-        return cases
+        cases_override = await cases  # type: ignore
+        return cases_override  # type: ignore
 
     app.dependency_overrides[get_cases] = get_cases_override
     client = TestClient(app)
