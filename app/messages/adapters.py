@@ -98,7 +98,7 @@ class Adapters(AdaptersInterface):
                 )
         try:
             agent_response = await self.drivers.get_response_from_agent(
-                message.message, history
+                message.message, history_to_agent
             )
         except UnexpectedModelBehavior as e:
             raise ModelExecutionError from e
