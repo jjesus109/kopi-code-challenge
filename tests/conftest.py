@@ -21,12 +21,10 @@ os.environ["DB_PASSWORD"] = "test"
 os.environ["DB_NAME"] = "test"
 
 
-from app.depends import get_cases
+from app.depends import get_adapter, get_proxy
 from app.entities import Conversations, Messages
 from app.main import app
-from app.messages.adapters import Adapters
-from app.messages.cases import Cases, CasesInterface
-from app.messages.drivers import Drivers
+from app.messages_adapters import MessagesAdapters
 from app.models import MessageModel
 from app.proxy.drivers import ProxyDrivers
 from app.proxy.policy import Policy
@@ -45,29 +43,33 @@ async def async_engine_fixture():
     return AsyncSession(async_engine, expire_on_commit=False)
 
 
-@pytest.fixture(name="cases")
-async def cases_fixture(async_engine: AsyncSession) -> CasesInterface:
+@pytest.fixture
+async def messages_adapters(async_engine: AsyncSession) -> Awaitable[MessagesAdapters]:
     main_agent = AsyncMock()
     main_agent.run.return_value = Mock()
     main_agent.run.return_value.output = "Mock main agent response"
     main_agent.run.return_value.new_messages_json.return_value = (
         b'{"data":"Mock main agent response"}'
     )
-    proxy_agent = AsyncMock()
-    proxy_agent.run.return_value = AsyncMock()
-    proxy_agent.run.return_value.output = "allow"
-    proxy = Proxy(Policy(ProxyDrivers(proxy_agent)))
     engine = await async_engine
-    return Cases(adapters=Adapters(Drivers(engine, main_agent)), proxy=proxy)
+    return MessagesAdapters(engine, main_agent)  # type: ignore
 
 
 @pytest.fixture(name="client")
-def client_fixture(cases: CasesInterface) -> TestClient:
-    async def get_cases_override() -> CasesInterface:
-        cases_override = await cases  # type: ignore
-        return cases_override  # type: ignore
+def client_fixture(messages_adapters: MessagesAdapters) -> TestClient:
+    async def get_adapter_override() -> MessagesAdapters:
+        adapter_override = await messages_adapters  # type: ignore
+        return adapter_override  # type: ignore
 
-    app.dependency_overrides[get_cases] = get_cases_override
+    async def get_proxy_override() -> Proxy:
+        proxy_agent = AsyncMock()
+        proxy_agent.run.return_value = AsyncMock()
+        proxy_agent.run.return_value.output = "allow"
+        proxy_overrided = Proxy(Policy(ProxyDrivers(proxy_agent)))
+        return proxy_overrided
+
+    app.dependency_overrides[get_adapter] = get_adapter_override
+    app.dependency_overrides[get_proxy] = get_proxy_override
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()

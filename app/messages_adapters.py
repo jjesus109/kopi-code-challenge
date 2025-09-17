@@ -13,6 +13,7 @@ from app.models import MessageHistoryModel, MessageModel, ResponseModel
 
 USER_ROLE = "user-prompt"
 AGENT_ROLE = "agent"
+DEFAULT_HISTORY_LIMIT = 5
 
 
 class MessagesAdapters:
@@ -48,7 +49,7 @@ class MessagesAdapters:
             content=message.message,
             conversation_id=conversation_id,
         )
-        await self._insert_message(formed_message)
+        await self._insert_message_on_db(formed_message)
 
     async def get_response_from_agent(
         self, message: MessageModel, conversation_id: uuid.UUID, history: list[Messages]
@@ -61,8 +62,8 @@ class MessagesAdapters:
                     ModelMessagesTypeAdapter.validate_json(row.metadata_response)
                 )
         try:
-            agent_response = await self._get_agent_response(
-                message.message, history_to_agent
+            agent_response = await self.agent.run(
+                message.message, message_history=history_to_agent
             )
         except UnexpectedModelBehavior as e:
             raise ModelExecutionError from e
@@ -76,13 +77,30 @@ class MessagesAdapters:
             conversation_id=conversation_id,
         )
         try:
-            await self._insert_message(formed_message)
+            await self._insert_message_on_db(formed_message)
         except SQLAlchemyError as e:
             raise DatabaseError from e
         return str_agent_response
 
     async def get_history_messages(self, conversation_id: uuid.UUID) -> list[Messages]:
-        message_history = await self._get_messages_from_db(conversation_id)
+        try:
+            async with self.async_session as session:
+                stmt = (
+                    select(Messages)
+                    .join(
+                        Conversations,
+                        Messages.conversation_id == Conversations.conversation_id,
+                    )
+                    .where(Conversations.conversation_id == conversation_id)
+                    .order_by(desc(Messages.insert_datetime))
+                    .limit(DEFAULT_HISTORY_LIMIT)
+                )
+
+                result = await session.execute(stmt)
+                message_history: list[Messages] = result.scalars().all()
+
+        except SQLAlchemyError as e:
+            raise DatabaseError from e
         if not message_history:
             raise NoMessagesFoundError
         return message_history
@@ -92,66 +110,28 @@ class MessagesAdapters:
     ) -> uuid.UUID:
         formed_message = Messages(role=USER_ROLE, content=message.message)
         try:
-            conversation_id = await self.insert_first_conversation(formed_message)
+            async with self.async_session as session:
+                async with session.begin():
+                    # insert first conversation item
+                    db_conversation = Conversations()
+                    session.add(db_conversation)
+                    await session.flush()
+
+                    # Insert first message
+                    formed_message.conversation_id = db_conversation.conversation_id
+                    session.add(formed_message)
+                    await session.flush()
+
+                    await session.commit()
+                    conversation_id = db_conversation.conversation_id
         except SQLAlchemyError as e:
             raise DatabaseError from e
         return conversation_id
 
-    async def _get_agent_response(
-        self, message: str, history: list[ModelMessage]
-    ) -> AgentRunResult:
-        """Get response from agent with model error handling."""
-        try:
-            return await self.agent.run(message, message_history=history)
-        except UnexpectedModelBehavior as e:
-            raise ModelExecutionError from e
-
-    async def _get_messages_from_db(self, conversation_id: uuid.UUID) -> list[Messages]:
-        """Get messages from database with error handling."""
-        try:
-            return await self.get_messages(conversation_id)
-        except SQLAlchemyError as e:
-            raise DatabaseError from e
-
-    async def _insert_message(self, message: Messages) -> None:
+    async def _insert_message_on_db(self, message: Messages) -> None:
         async with self.async_session as session:
             async with session.begin():
 
                 session.add(message)
                 await session.flush()
                 await session.commit()
-
-    async def insert_first_conversation(self, message: Messages) -> uuid.UUID:
-        async with self.async_session as session:
-            async with session.begin():
-                # insert first conversation item
-                db_conversation = Conversations()
-                session.add(db_conversation)
-                await session.flush()
-
-                # Insert first message
-                message.conversation_id = db_conversation.conversation_id
-                session.add(message)
-                await session.flush()
-
-                await session.commit()
-                return db_conversation.conversation_id
-
-    async def get_messages(
-        self, conversation_id: uuid.UUID, limit: int = 5
-    ) -> list[Messages]:
-        async with self.async_session as session:
-            stmt = (
-                select(Messages)
-                .join(
-                    Conversations,
-                    Messages.conversation_id == Conversations.conversation_id,
-                )
-                .where(Conversations.conversation_id == conversation_id)
-                .order_by(desc(Messages.insert_datetime))
-                .limit(limit)
-            )
-
-            result = await session.execute(stmt)
-            messages: list[Messages] = result.scalars().all()
-            return messages

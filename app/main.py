@@ -100,10 +100,7 @@ async def _handle_existing_conversation(
         history = await adapters.get_history_messages(conversation_id)
     except NoMessagesFoundError:
         log.debug(f"No messages found for conversation id: {conversation_id}")
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail="No messages found for this conversation",
-        )
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND)
     try:
         await adapters.insert_message(message, conversation_id)
     except DatabaseError as e:
