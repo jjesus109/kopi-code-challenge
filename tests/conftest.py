@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import SQLModel
 from sqlmodel.pool import StaticPool
+
+from app.proxy import Proxy
 
 os.environ["GOOGLE_API_KEY"] = "test"
 os.environ["PORT"] = "1000"
@@ -26,9 +28,6 @@ from app.entities import Conversations, Messages
 from app.main import app
 from app.messages_adapters import MessagesAdapters
 from app.models import MessageModel
-from app.proxy.drivers import ProxyDrivers
-from app.proxy.policy import Policy
-from app.proxy.proxy import Proxy
 
 
 @pytest.fixture(name="async_engine")
@@ -65,7 +64,7 @@ def client_fixture(messages_adapters: MessagesAdapters) -> TestClient:
         proxy_agent = AsyncMock()
         proxy_agent.run.return_value = AsyncMock()
         proxy_agent.run.return_value.output = "allow"
-        proxy_overrided = Proxy(Policy(ProxyDrivers(proxy_agent)))
+        proxy_overrided = Proxy(proxy_agent)
         return proxy_overrided
 
     app.dependency_overrides[get_adapter] = get_adapter_override

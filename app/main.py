@@ -10,9 +10,10 @@ from fastapi import Depends, HTTPException
 
 from app.configuration import Configuration
 from app.db import SQLModel, get_async_engine
-from app.depends import MessagesAdapters, Proxy, get_adapter, get_proxy
+from app.depends import MessagesAdapters, get_adapter, get_proxy
 from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
 from app.models import MessageModel, ResponseModel
+from app.proxy import Proxy
 from app.utils import configure_logger
 
 AdapterDeps = Annotated[MessagesAdapters, Depends(get_adapter)]
