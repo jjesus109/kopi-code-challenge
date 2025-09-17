@@ -1,6 +1,6 @@
 import uuid
 from typing import Awaitable
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from pydantic_ai import UnexpectedModelBehavior
