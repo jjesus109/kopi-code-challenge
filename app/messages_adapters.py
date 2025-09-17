@@ -1,60 +1,24 @@
-import asyncio
 import uuid
-from abc import ABC, abstractmethod
 
-from pydantic_ai import UnexpectedModelBehavior
+from pydantic_ai import Agent, UnexpectedModelBehavior
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from sqlalchemy import desc, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.entities import Messages
+from app.entities import Conversations, Messages
 from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
-from app.messages.drivers import DriversInterface
 from app.models import MessageHistoryModel, MessageModel, ResponseModel
 
 USER_ROLE = "user-prompt"
 AGENT_ROLE = "agent"
 
 
-class AdaptersInterface(ABC):
-
-    @abstractmethod
-    async def get_response_from_agent(
-        self, message: MessageModel, conversation_id: uuid.UUID, history: list[Messages]
-    ) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def get_history_messages(self, conversation_id: uuid.UUID) -> list[Messages]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def insert_first_conversation_messages(
-        self, message: MessageModel
-    ) -> uuid.UUID:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def insert_message(
-        self, message: MessageModel, conversation_id: uuid.UUID
-    ) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def convert_agent_model_to_response(
-        self,
-        conversation_id: uuid.UUID,
-        user_message: MessageModel,
-        agent_response: str,
-        history: list[Messages],
-        history_limit: int,
-    ) -> ResponseModel:
-        raise NotImplementedError
-
-
-class Adapters(AdaptersInterface):
-    def __init__(self, drivers: DriversInterface):
-        self.drivers = drivers
+class MessagesAdapters:
+    def __init__(self, async_session: AsyncSession, agent: Agent):
+        self.async_session = async_session
+        self.agent = agent
 
     def convert_agent_model_to_response(
         self,
@@ -97,7 +61,7 @@ class Adapters(AdaptersInterface):
                     ModelMessagesTypeAdapter.validate_json(row.metadata_response)
                 )
         try:
-            agent_response = await self.drivers.get_response_from_agent(
+            agent_response = await self._get_agent_response(
                 message.message, history_to_agent
             )
         except UnexpectedModelBehavior as e:
@@ -111,7 +75,10 @@ class Adapters(AdaptersInterface):
             metadata_response=metadata_response.decode(),
             conversation_id=conversation_id,
         )
-        await self._insert_message(formed_message)
+        try:
+            await self._insert_message(formed_message)
+        except SQLAlchemyError as e:
+            raise DatabaseError from e
         return str_agent_response
 
     async def get_history_messages(self, conversation_id: uuid.UUID) -> list[Messages]:
@@ -125,9 +92,7 @@ class Adapters(AdaptersInterface):
     ) -> uuid.UUID:
         formed_message = Messages(role=USER_ROLE, content=message.message)
         try:
-            conversation_id = await self.drivers.insert_first_conversation(
-                formed_message
-            )
+            conversation_id = await self.insert_first_conversation(formed_message)
         except SQLAlchemyError as e:
             raise DatabaseError from e
         return conversation_id
@@ -137,20 +102,56 @@ class Adapters(AdaptersInterface):
     ) -> AgentRunResult:
         """Get response from agent with model error handling."""
         try:
-            return await self.drivers.get_response_from_agent(message, history)
+            return await self.agent.run(message, message_history=history)
         except UnexpectedModelBehavior as e:
             raise ModelExecutionError from e
-
-    async def _insert_message(self, message: Messages) -> None:
-        """Insert agent message with database error handling."""
-        try:
-            await self.drivers.insert_message(message)
-        except SQLAlchemyError as e:
-            raise DatabaseError from e
 
     async def _get_messages_from_db(self, conversation_id: uuid.UUID) -> list[Messages]:
         """Get messages from database with error handling."""
         try:
-            return await self.drivers.get_messages(conversation_id)
+            return await self.get_messages(conversation_id)
         except SQLAlchemyError as e:
             raise DatabaseError from e
+
+    async def _insert_message(self, message: Messages) -> None:
+        async with self.async_session as session:
+            async with session.begin():
+
+                session.add(message)
+                await session.flush()
+                await session.commit()
+
+    async def insert_first_conversation(self, message: Messages) -> uuid.UUID:
+        async with self.async_session as session:
+            async with session.begin():
+                # insert first conversation item
+                db_conversation = Conversations()
+                session.add(db_conversation)
+                await session.flush()
+
+                # Insert first message
+                message.conversation_id = db_conversation.conversation_id
+                session.add(message)
+                await session.flush()
+
+                await session.commit()
+                return db_conversation.conversation_id
+
+    async def get_messages(
+        self, conversation_id: uuid.UUID, limit: int = 5
+    ) -> list[Messages]:
+        async with self.async_session as session:
+            stmt = (
+                select(Messages)
+                .join(
+                    Conversations,
+                    Messages.conversation_id == Conversations.conversation_id,
+                )
+                .where(Conversations.conversation_id == conversation_id)
+                .order_by(desc(Messages.insert_datetime))
+                .limit(limit)
+            )
+
+            result = await session.execute(stmt)
+            messages: list[Messages] = result.scalars().all()
+            return messages
