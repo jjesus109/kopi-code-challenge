@@ -1,31 +1,42 @@
+import logging
 import re
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from pydantic_ai import UnexpectedModelBehavior
+from pydantic_ai import Agent, UnexpectedModelBehavior
 
 from app.errors import ModelExecutionError
-from app.models import MessageModel
-from app.proxy.drivers import ProxyDriversInterface
 
-
-class PolicyInterface(ABC):
-    @abstractmethod
-    async def decide_policy_action(self, message: str) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def notify_external_service(self, message: str) -> None:
-        raise NotImplementedError
+log = logging.getLogger(__name__)
 
 
 @dataclass
-class Policy(PolicyInterface):
-    drivers: ProxyDriversInterface
+class Proxy:
+    agent: Agent
 
-    async def notify_external_service(self, message: str) -> None:
-        """Notify an external service with the message."""
-        await self.drivers.notify_external_service(message)
+    async def valid_message(self, message: str) -> bool:
+        """Validate if the message is allowed to be processed.
+        If the action is deny, will return false.
+        If the action is warn, will return false. And notify to alert service.
+        If the action is allow, will return true.
+        """
+        try:
+            policy_action = await self.decide_policy_action(message)
+        except ModelExecutionError as e:
+            log.error(
+                "Model execution error on deciding policy action: Maybe prohibited message received from user or LLM: %s",
+                e,
+            )
+            return False
+        if policy_action == "deny":
+            return False
+        elif policy_action == "warn":
+            await self.notify_external_service(message)
+            return False
+        elif policy_action == "allow":
+            return True
+        else:
+            log.warning("Unknown policy action: %s", policy_action)
+            return False
 
     async def decide_policy_action(self, message: str) -> str:
         """
@@ -111,8 +122,12 @@ class Policy(PolicyInterface):
 
         # If none of the above, request to agents to decide
         try:
-            agent_response = await self.drivers.get_response_from_agent(content)
+            agent_response = await self.agent.run(content)
         except UnexpectedModelBehavior as e:
             raise ModelExecutionError from e
         response: str = agent_response.output.lower()
         return response
+
+    async def notify_external_service(self, message: str) -> None:
+        """Notify an external service with the message."""
+        log.info(f"Notifying external service with message: {message}")

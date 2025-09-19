@@ -1,60 +1,25 @@
-import asyncio
 import uuid
-from abc import ABC, abstractmethod
 
-from pydantic_ai import UnexpectedModelBehavior
+from pydantic_ai import Agent, UnexpectedModelBehavior
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from sqlalchemy import desc, select
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.entities import Messages
+from app.entities import Conversations, Messages
 from app.errors import DatabaseError, ModelExecutionError, NoMessagesFoundError
-from app.messages.drivers import DriversInterface
 from app.models import MessageHistoryModel, MessageModel, ResponseModel
 
 USER_ROLE = "user-prompt"
 AGENT_ROLE = "agent"
+DEFAULT_HISTORY_LIMIT = 5
 
 
-class AdaptersInterface(ABC):
-
-    @abstractmethod
-    async def get_response_from_agent(
-        self, message: MessageModel, conversation_id: uuid.UUID, history: list[Messages]
-    ) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def get_history_messages(self, conversation_id: uuid.UUID) -> list[Messages]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def insert_first_conversation_messages(
-        self, message: MessageModel
-    ) -> uuid.UUID:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def insert_message(
-        self, message: MessageModel, conversation_id: uuid.UUID
-    ) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def convert_agent_model_to_response(
-        self,
-        conversation_id: uuid.UUID,
-        user_message: MessageModel,
-        agent_response: str,
-        history: list[Messages],
-        history_limit: int,
-    ) -> ResponseModel:
-        raise NotImplementedError
-
-
-class Adapters(AdaptersInterface):
-    def __init__(self, drivers: DriversInterface):
-        self.drivers = drivers
+class MessagesAdapters:
+    def __init__(self, async_session: AsyncSession, agent: Agent):
+        self.async_session = async_session
+        self.agent = agent
 
     def convert_agent_model_to_response(
         self,
@@ -84,7 +49,7 @@ class Adapters(AdaptersInterface):
             content=message.message,
             conversation_id=conversation_id,
         )
-        await self._insert_message(formed_message)
+        await self._insert_message_on_db(formed_message)
 
     async def get_response_from_agent(
         self, message: MessageModel, conversation_id: uuid.UUID, history: list[Messages]
@@ -97,8 +62,8 @@ class Adapters(AdaptersInterface):
                     ModelMessagesTypeAdapter.validate_json(row.metadata_response)
                 )
         try:
-            agent_response = await self.drivers.get_response_from_agent(
-                message.message, history_to_agent
+            agent_response = await self.agent.run(
+                message.message, message_history=history_to_agent
             )
         except UnexpectedModelBehavior as e:
             raise ModelExecutionError from e
@@ -111,11 +76,31 @@ class Adapters(AdaptersInterface):
             metadata_response=metadata_response.decode(),
             conversation_id=conversation_id,
         )
-        await self._insert_message(formed_message)
+        try:
+            await self._insert_message_on_db(formed_message)
+        except SQLAlchemyError as e:
+            raise DatabaseError from e
         return str_agent_response
 
     async def get_history_messages(self, conversation_id: uuid.UUID) -> list[Messages]:
-        message_history = await self._get_messages_from_db(conversation_id)
+        try:
+            async with self.async_session as session:
+                stmt = (
+                    select(Messages)
+                    .join(
+                        Conversations,
+                        Messages.conversation_id == Conversations.conversation_id,
+                    )
+                    .where(Conversations.conversation_id == conversation_id)
+                    .order_by(desc(Messages.insert_datetime))
+                    .limit(DEFAULT_HISTORY_LIMIT)
+                )
+
+                result = await session.execute(stmt)
+                message_history: list[Messages] = result.scalars().all()
+
+        except SQLAlchemyError as e:
+            raise DatabaseError from e
         if not message_history:
             raise NoMessagesFoundError
         return message_history
@@ -125,32 +110,28 @@ class Adapters(AdaptersInterface):
     ) -> uuid.UUID:
         formed_message = Messages(role=USER_ROLE, content=message.message)
         try:
-            conversation_id = await self.drivers.insert_first_conversation(
-                formed_message
-            )
+            async with self.async_session as session:
+                async with session.begin():
+                    # insert first conversation item
+                    db_conversation = Conversations()
+                    session.add(db_conversation)
+                    await session.flush()
+
+                    # Insert first message
+                    formed_message.conversation_id = db_conversation.conversation_id
+                    session.add(formed_message)
+                    await session.flush()
+
+                    await session.commit()
+                    conversation_id = db_conversation.conversation_id
         except SQLAlchemyError as e:
             raise DatabaseError from e
         return conversation_id
 
-    async def _get_agent_response(
-        self, message: str, history: list[ModelMessage]
-    ) -> AgentRunResult:
-        """Get response from agent with model error handling."""
-        try:
-            return await self.drivers.get_response_from_agent(message, history)
-        except UnexpectedModelBehavior as e:
-            raise ModelExecutionError from e
+    async def _insert_message_on_db(self, message: Messages) -> None:
+        async with self.async_session as session:
+            async with session.begin():
 
-    async def _insert_message(self, message: Messages) -> None:
-        """Insert agent message with database error handling."""
-        try:
-            await self.drivers.insert_message(message)
-        except SQLAlchemyError as e:
-            raise DatabaseError from e
-
-    async def _get_messages_from_db(self, conversation_id: uuid.UUID) -> list[Messages]:
-        """Get messages from database with error handling."""
-        try:
-            return await self.drivers.get_messages(conversation_id)
-        except SQLAlchemyError as e:
-            raise DatabaseError from e
+                session.add(message)
+                await session.flush()
+                await session.commit()
