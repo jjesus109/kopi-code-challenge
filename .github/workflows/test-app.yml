@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: '279566078903'
+  PROJECT_ID: 'cuenca-challenge'
   REGION: 'northamerica-northeast1'
   SERVICE: 'kopi-challenge-test'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/github-gcp-kopi/providers/kopi-provider'
@@ -43,6 +43,7 @@ jobs:
         with:
           service: '${{ env.SERVICE }}'
           region: '${{ env.REGION }}'
+          project_id: '${{ env.PROJECT_ID }}'
           # NOTE: If using a different source folder, update the image name below:
           source: '/app'
       # If required, use the Cloud Run URL output in later steps
