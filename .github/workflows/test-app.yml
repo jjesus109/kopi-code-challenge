@@ -14,8 +14,8 @@ env:
   PROJECT_ID: 'cuenca-challenge'
   REGION: 'northamerica-northeast1'
   SERVICE: 'kopi-challenge-test'
-  SERVICE_ACCOUNT: 'github-kopi-wif@cuenca-challenge.iam.gserviceaccount.com'
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/github-gcp-kopi/providers/kopi-provider'
+  SERVICE_ACCOUNT: 'cuenca-sa@cuenca-challenge.iam.gserviceaccount.com'
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/my-pool/providers/kopi-github'
 
 jobs:
   deploy:
@@ -37,7 +37,6 @@ jobs:
         name: Authenticate to Google Cloud
         uses: 'google-github-actions/auth@v3'
         with:
-          project_id: 'cuenca-challenge'
           service_account: '${{ env.SERVICE_ACCOUNT }}'
           workload_identity_provider: '${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
 
