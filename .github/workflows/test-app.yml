@@ -16,7 +16,7 @@ env:
   SERVICE: 'kopi-challenge-test'
   SERVICE_ACCOUNT: 'cuenca-sa@cuenca-challenge.iam.gserviceaccount.com'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/my-pool/providers/kopi-github'
-
+  TEST_ENDPOINT: 'https://kopi-challenge-test-279566078903.northamerica-northeast1.run.app'
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -49,7 +49,6 @@ jobs:
           # NOTE: If using a different source folder, update the image name below:
           source: './'
       # If required, use the Cloud Run URL output in later steps
-      - name: 'Show output'
-        run: |2-
-
-          echo ${{ steps.deploy.outputs.url }}
+      - name: 'Test atacks'
+        run: |
+          python -m uv run test_attacks.py
