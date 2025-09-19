@@ -58,4 +58,4 @@ jobs:
           uv sync
       - name: 'Test atacks'
         run: |
-          python -m uv run test_attacks.py
+          python -m uv run attacks_test_suite.py
