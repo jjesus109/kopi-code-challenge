@@ -1,5 +1,5 @@
-FROM jjesus109/base-python-image:1.0.0 
-ENV PYTHONPATH "/app"
+FROM jjesus109/base-python-image:1.0.1
+ENV PYTHONPATH="/app"
 COPY pyproject.toml .
 COPY uv.lock .
 RUN uv sync
