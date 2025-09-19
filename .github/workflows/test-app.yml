@@ -9,8 +9,6 @@ on:
   pull_request:
     branches: [ "main" ]
 
-permissions:
-  contents: read
 
 env:
   PROJECT_ID: 'cuenca-challenge' # TODO: update to your Google Cloud project ID
