@@ -3,13 +3,6 @@
 
 name: Python application
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-
 env:
   PROJECT_ID: 'cuenca-challenge' # TODO: update to your Google Cloud project ID
   REGION: 'northamerica-northeast1' # TODO: update to your region
@@ -17,6 +10,12 @@ env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/github-gcp-kopi/providers/kopi-provider 
 
 
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
