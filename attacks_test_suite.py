@@ -26,7 +26,7 @@ def get_response(prompt: str) -> str:
         response.raise_for_status()
         raise Exception(response.json()["message"][0]["message"])
     except requests.exceptions.HTTPError as http_err:
-        if response.status_code == HTTPStatus.CONFLICT:
+        if response.status_code != HTTPStatus.CONFLICT:
             raise Exception(
                 f"Other error occurred: {http_err} - Response: {response.text}"
             )
