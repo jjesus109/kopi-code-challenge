@@ -1,4 +1,4 @@
-FROM  northamerica-northeast1-docker.pkg.dev/cuenca-challenge/base-python/python-base-image:lastest
+FROM  northamerica-northeast1-docker.pkg.dev/cuenca-challenge/base-python/python-base-image:1.0.0
 ENV PYTHONPATH "/app"
 COPY pyproject.toml .
 COPY uv.lock .
