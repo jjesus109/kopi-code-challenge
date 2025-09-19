@@ -1,0 +1,65 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Python application
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: 'cuenca-challenge'
+  REGION: 'northamerica-northeast1'
+  SERVICE: 'kopi-challenge-test'
+  SERVICE_ACCOUNT: 'cuenca-sa@cuenca-challenge.iam.gserviceaccount.com'
+  WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/my-pool/providers/kopi-github'
+  TEST_ENDPOINT: 'https://kopi-challenge-test-279566078903.northamerica-northeast1.run.app'
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: 'actions/checkout@v4'
+
+      # Configure Workload Identity Federation and generate an access token.
+      #
+      # See https://github.com/google-github-actions/auth for more options,
+      # including authenticating via a JSON credentials file.
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v3'
+        with:
+          service_account: '${{ env.SERVICE_ACCOUNT }}'
+          workload_identity_provider: '${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
+
+      - name: 'Deploy to Cloud Run'
+        uses: 'google-github-actions/deploy-cloudrun@v2' # google-github-actions/deploy-cloudrun@v2
+        with:
+          service: '${{ env.SERVICE }}'
+          region: '${{ env.REGION }}'
+          project_id: '${{ env.PROJECT_ID }}'
+          # NOTE: If using a different source folder, update the image name below:
+          source: './'
+  build-test-attacks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+          uv sync
+      - name: 'Test atacks'
+        run: |
+          python -m uv run test_attacks.py
