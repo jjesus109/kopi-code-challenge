@@ -11,9 +11,9 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: 'cuenca-challenge' # TODO: update to your Google Cloud project ID
-  REGION: 'northamerica-northeast1' # TODO: update to your region
-  SERVICE: 'kopi-code-challenge' # TODO: update to your service name
+  PROJECT_ID: 'cuenca-challenge'
+  REGION: 'northamerica-northeast1'
+  SERVICE: 'kopi-challenge-test'
   WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/github-gcp-kopi/providers/kopi-provider'
 
 jobs:
