@@ -16,7 +16,7 @@ env:
   WORKLOAD_IDENTITY_PROVIDER: 'projects/279566078903/locations/global/workloadIdentityPools/my-pool/providers/kopi-github'
   TEST_ENDPOINT: 'https://kopi-challenge-test-279566078903.northamerica-northeast1.run.app'
 jobs:
-  deploy:
+  deploy-test-app:
     runs-on: ubuntu-latest
 
     permissions:
@@ -46,11 +46,7 @@ jobs:
           project_id: '${{ env.PROJECT_ID }}'
           # NOTE: If using a different source folder, update the image name below:
           source: './'
-  build-test-attacks:
-    runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
       - name: Set up Python 3.10
         uses: actions/setup-python@v3
         with:
