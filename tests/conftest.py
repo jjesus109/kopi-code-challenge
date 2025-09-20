@@ -5,6 +5,7 @@ from typing import Awaitable
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlmodel import SQLModel
@@ -30,7 +31,7 @@ from app.messages_adapters import MessagesAdapters
 from app.models import MessageModel
 
 
-@pytest.fixture(name="async_engine")
+@pytest_asyncio.fixture(name="async_engine")
 async def async_engine_fixture():
     async_engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -42,25 +43,22 @@ async def async_engine_fixture():
     return AsyncSession(async_engine, expire_on_commit=False)
 
 
-@pytest.fixture
-async def messages_adapters(async_engine: AsyncSession) -> Awaitable[MessagesAdapters]:
+@pytest_asyncio.fixture()
+async def messages_adapters(async_engine: AsyncSession) -> MessagesAdapters:
     main_agent = AsyncMock()
     main_agent.run.return_value = Mock()
     main_agent.run.return_value.output = "Mock main agent response"
-    main_agent.run.return_value.new_messages_json.return_value = (
-        b'{"data":"Mock main agent response"}'
-    )
-    engine = await async_engine
-    return MessagesAdapters(engine, main_agent)  # type: ignore
+    # Use the correct format that matches sample_model_response
+    main_agent.run.return_value.new_messages_json.return_value = b'[{"parts":[{"content":"Mock main agent response","timestamp":"2025-09-03T01:43:49.759895Z","part_kind":"text"}],"usage":{"input_tokens":10,"output_tokens":5},"model_name":"test-model","timestamp":"2025-09-03T01:43:50.635280Z","kind":"response","provider_name":"test-provider","provider_details":{"finish_reason":"STOP"},"provider_response_id":"test-id"}]'
+    return MessagesAdapters(async_engine, main_agent)
 
 
-@pytest.fixture(name="client")
-def client_fixture(messages_adapters: MessagesAdapters) -> TestClient:
-    async def get_adapter_override() -> MessagesAdapters:
-        adapter_override = await messages_adapters  # type: ignore
-        return adapter_override  # type: ignore
+@pytest_asyncio.fixture(name="client_fixture")
+async def client_fixture(messages_adapters: MessagesAdapters) -> TestClient:
+    def get_adapter_override() -> MessagesAdapters:
+        return messages_adapters
 
-    async def get_proxy_override() -> Proxy:
+    def get_proxy_override() -> Proxy:
         proxy_agent = AsyncMock()
         proxy_agent.run.return_value = AsyncMock()
         proxy_agent.run.return_value.output = "allow"
