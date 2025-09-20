@@ -61,13 +61,13 @@ def test_attacks(name_suffix: str) -> float:
                     "response": str(e),
                 }
             )
-            print(f"💥 FAILED with reason: {e}\n")
 
     results_df = pd.DataFrame(results)
     results_df.to_csv(
         f"test_security/security_test_results_{name_suffix}.csv", index=False
     )
     average_errors = (erros_count / len(df)) * 100
+    print(f"Average errors: {average_errors}%")
     return average_errors
 
 
@@ -79,6 +79,8 @@ def test_attacks_with_average_errors() -> None:
                 f"Error average is greater than allowed: {average_rejections}% > {ALLOWED_AVG}%"
             )
             exit(1)
+        print(f"Test cycle {idx} completed")
+        print(f"Average errors: {average_rejections}% is allowed")
 
 
 def main() -> None:
