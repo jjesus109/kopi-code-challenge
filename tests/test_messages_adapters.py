@@ -1,5 +1,4 @@
 import uuid
-from typing import Awaitable
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -21,11 +20,11 @@ class TestMessagesAdapters:
 
     @pytest.mark.asyncio
     async def test_convert_agent_model_to_response_no_history(
-        self, messages_adapters: Awaitable[MessagesAdapters]
+        self, messages_adapters: MessagesAdapters
     ) -> None:
         """Test converting agent model to response with no history"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         user_message = MessageModel(message="Hello", conversation_id=conversation_id)
         agent_response = "Hi there!"
@@ -51,11 +50,11 @@ class TestMessagesAdapters:
 
     @pytest.mark.asyncio
     async def test_convert_agent_model_to_response_with_history(
-        self, messages_adapters: Awaitable[MessagesAdapters]
+        self, messages_adapters: MessagesAdapters
     ) -> None:
         """Test converting agent model to response with history"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         user_message = MessageModel(message="Hello", conversation_id=conversation_id)
         agent_response = "Hi there!"
@@ -95,11 +94,11 @@ class TestMessagesAdapters:
 
     @pytest.mark.asyncio
     async def test_convert_agent_model_to_response_with_custom_history_limit(
-        self, messages_adapters: Awaitable[MessagesAdapters]
+        self, messages_adapters: MessagesAdapters
     ) -> None:
         """Test converting agent model to response with custom history limit"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         user_message = MessageModel(message="Hello", conversation_id=conversation_id)
         agent_response = "Hi there!"
@@ -127,12 +126,12 @@ class TestMessagesAdapters:
     @pytest.mark.asyncio
     async def test_insert_message_success(
         self,
-        messages_adapters: Awaitable[MessagesAdapters],
+        messages_adapters: MessagesAdapters,
         sample_message_model: MessageModel,
     ) -> None:
         """Test successful message insertion"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         sample_message_model.conversation_id = conversation_id
 
@@ -149,13 +148,13 @@ class TestMessagesAdapters:
     @pytest.mark.asyncio
     async def test_get_response_from_agent_success(
         self,
-        messages_adapters: Awaitable[MessagesAdapters],
+        messages_adapters: MessagesAdapters,
         sample_message_model: MessageModel,
         sample_model_response: str,
     ) -> None:
         """Test successful response from agent"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         expected_agent_response = "Agent response"
         history: list[Messages] = [
@@ -184,12 +183,12 @@ class TestMessagesAdapters:
     @pytest.mark.asyncio
     async def test_get_response_from_agent_model_execution_error(
         self,
-        messages_adapters: Awaitable[MessagesAdapters],
+        messages_adapters: MessagesAdapters,
         sample_message_model: MessageModel,
     ) -> None:
         """Test that ModelExecutionError is raised when UnexpectedModelBehavior occurs"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         history: list[Messages] = []
         expected_error_msg = "Model failed"
@@ -205,13 +204,13 @@ class TestMessagesAdapters:
     @pytest.mark.asyncio
     async def test_get_response_from_agent_database_error_on_insert(
         self,
-        messages_adapters: Awaitable[MessagesAdapters],
+        messages_adapters: MessagesAdapters,
         sample_message_model: MessageModel,
         sample_model_response: str,
     ) -> None:
         """Test that DatabaseError is raised when SQLAlchemyError occurs during message insertion"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         history: list[Messages] = []
         expected_error_msg = "Insert failed"
@@ -236,11 +235,11 @@ class TestMessagesAdapters:
 
     @pytest.mark.asyncio
     async def test_get_history_messages_success(
-        self, messages_adapters: Awaitable[MessagesAdapters]
+        self, messages_adapters: MessagesAdapters
     ) -> None:
         """Test successful retrieval of history messages"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
 
         expected_messages = [
             MessageModel(message="Message 1"),
@@ -259,11 +258,11 @@ class TestMessagesAdapters:
 
     @pytest.mark.asyncio
     async def test_get_history_messages_database_error(
-        self, messages_adapters: Awaitable[MessagesAdapters]
+        self, messages_adapters: MessagesAdapters
     ) -> None:
         """Test that DatabaseError is raised when SQLAlchemyError occurs during get_history_messages"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         expected_error_msg = "Query failed"
 
@@ -280,11 +279,11 @@ class TestMessagesAdapters:
 
     @pytest.mark.asyncio
     async def test_get_history_messages_no_messages_found(
-        self, messages_adapters: Awaitable[MessagesAdapters]
+        self, messages_adapters: MessagesAdapters
     ) -> None:
         """Test that NoMessagesFoundError is raised when no messages are found"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()  # Act & Assert
         with pytest.raises(NoMessagesFoundError):
             await adapter.get_history_messages(conversation_id)
@@ -292,12 +291,12 @@ class TestMessagesAdapters:
     @pytest.mark.asyncio
     async def test_insert_first_conversation_messages_success(
         self,
-        messages_adapters: Awaitable[MessagesAdapters],
+        messages_adapters: MessagesAdapters,
         sample_message_model: MessageModel,
     ) -> None:
         """Test successful insertion of first conversation with message"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         # Act
         result = await adapter.insert_first_conversation_messages(sample_message_model)
         assert result is not None
@@ -309,13 +308,13 @@ class TestMessagesAdapters:
     @pytest.mark.asyncio
     async def test_insert_first_conversation_messages_database_error(
         self,
-        messages_adapters: Awaitable[MessagesAdapters],
+        messages_adapters: MessagesAdapters,
         sample_message_model: MessageModel,
     ) -> None:
         """Test that DatabaseError is raised when SQLAlchemyError occurs during insert_first_conversation_messages"""
         # Arrange
         expected_error_msg = "Failed on sqlalchemy"
-        adapter = await messages_adapters
+        adapter = messages_adapters
         mocked_async_session = AsyncMock()
         mocked_async_session.__aenter__.side_effect = SQLAlchemyError(
             expected_error_msg
@@ -329,11 +328,11 @@ class TestMessagesAdapters:
 
     @pytest.mark.asyncio
     async def test_convert_agent_model_to_response_history_limit_edge_cases(
-        self, messages_adapters: Awaitable[MessagesAdapters]
+        self, messages_adapters: MessagesAdapters
     ) -> None:
         """Test convert_agent_model_to_response with edge cases for history limit"""
         # Arrange
-        adapter = await messages_adapters
+        adapter = messages_adapters
         conversation_id = uuid.uuid4()
         user_message = MessageModel(message="Hello", conversation_id=conversation_id)
         agent_response = "Hi there!"

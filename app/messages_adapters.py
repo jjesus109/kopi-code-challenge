@@ -14,12 +14,16 @@ from app.models import MessageHistoryModel, MessageModel, ResponseModel
 USER_ROLE = "user-prompt"
 AGENT_ROLE = "agent"
 DEFAULT_HISTORY_LIMIT = 5
+DEFAULT_MESSAGE_GET_TOPIC = "Dime cual es el tema principal del debate que tenemos, no uses la palabra debate o tema, responde con 10 palabras o menos"
+DEFAULT_MESSAGE_NOT_CHANGE_TOPIC = "Volvamos al debate sobre nuestro tema principal: "
 
 
 class MessagesAdapters:
     def __init__(self, async_session: AsyncSession, agent: Agent):
         self.async_session = async_session
         self.agent = agent
+        self.DEFAULT_MESSAGE_GET_TOPIC = DEFAULT_MESSAGE_GET_TOPIC
+        self.DEFAULT_MESSAGE_NOT_CHANGE_TOPIC = DEFAULT_MESSAGE_NOT_CHANGE_TOPIC
 
     def convert_agent_model_to_response(
         self,
@@ -54,20 +58,7 @@ class MessagesAdapters:
     async def get_response_from_agent(
         self, message: MessageModel, conversation_id: uuid.UUID, history: list[Messages]
     ) -> str:
-        history_to_agent: list[ModelMessage] = []
-        for row in history:
-            # Look only for agent responses, cause we only store metadata_response for agent responses
-            if row.role == AGENT_ROLE:
-                history_to_agent.extend(
-                    ModelMessagesTypeAdapter.validate_json(row.metadata_response)
-                )
-        try:
-            agent_response = await self.agent.run(
-                message.message, message_history=history_to_agent
-            )
-        except UnexpectedModelBehavior as e:
-            raise ModelExecutionError from e
-
+        agent_response = await self._get_agent_response(message.message, history)
         metadata_response = agent_response.new_messages_json()
         str_agent_response: str = agent_response.output
         formed_message = Messages(
@@ -135,3 +126,29 @@ class MessagesAdapters:
                 session.add(message)
                 await session.flush()
                 await session.commit()
+
+    async def get_topic_from_conversation(self, history: list[Messages]) -> str:
+        message = self.DEFAULT_MESSAGE_GET_TOPIC
+        agent_response = await self._get_agent_response(message, history)
+        str_agent_response: str = agent_response.output
+        content = self.DEFAULT_MESSAGE_NOT_CHANGE_TOPIC + str_agent_response
+
+        return content
+
+    async def _get_agent_response(
+        self, message: str, history: list[Messages]
+    ) -> AgentRunResult:
+        history_to_agent: list[ModelMessage] = []
+        for row in history:
+            # Look only for agent responses, cause we only store metadata_response for agent responses
+            if row.role == AGENT_ROLE:
+                history_to_agent.extend(
+                    ModelMessagesTypeAdapter.validate_json(row.metadata_response)
+                )
+        try:
+            agent_response = await self.agent.run(
+                message, message_history=history_to_agent
+            )
+        except UnexpectedModelBehavior as e:
+            raise ModelExecutionError from e
+        return agent_response

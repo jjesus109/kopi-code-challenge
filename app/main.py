@@ -51,30 +51,59 @@ async def send_messages(
     # if conversation_id is None is first message
     conversation_id = message.conversation_id
     history = []
+    invalid_message = False
     # validate message
+    print(f"Message: {message}")
     if not await proxy.valid_message(message.message):
         log.error(f"Message sent by user is not allowed: {message}")
+        invalid_message = True
+        # Notify user to not change the topic and return to the conversation
+
+    print(f"Conversation id: {conversation_id} and invalid message: {invalid_message}")
+    if conversation_id is None and invalid_message:
+        log.info(f"Conversation id is None and invalid message, raising conflict")
         raise HTTPException(status_code=HTTPStatus.CONFLICT)
-    if conversation_id is None:
+    elif conversation_id is None and not invalid_message:
+        log.info(
+            f"Conversation id is None and not invalid message, inserting first conversation"
+        )
         # insert first conversation
         conversation_id = await _handle_first_conversation(adapters, message)
-    # if not first message, get history from db
-    else:
+    elif conversation_id and invalid_message:
+        log.info(
+            f"Conversation id is not None and invalid message, getting topic from conversation"
+        )
+        try:
+            history = await adapters.get_history_messages(conversation_id)
+        except NoMessagesFoundError:
+            log.info(f"No messages found for conversation id: {conversation_id}")
+            raise HTTPException(status_code=HTTPStatus.NOT_FOUND)
+        log.warning(
+            f"Conversation id: {conversation_id} is invalid, getting topic from conversation"
+        )
+    elif conversation_id and not invalid_message:
+        log.info(
+            f"Conversation id is not None and not invalid message, getting history from db"
+        )
+        # if not first message, get history from db
         history = await _handle_existing_conversation(
             adapters, message, conversation_id
         )
-        log.debug(f"Continuing conversation with id: {conversation_id}")
-    # insert agent response to db
-    agent_response = await _handle_agent_response(
-        adapters, message, conversation_id, history
-    )
+        log.info(f"Continuing conversation with id: {conversation_id}")
+
+    if invalid_message:
+        agent_response = await adapters.get_topic_from_conversation(history)
+    else:
+        agent_response = await _handle_agent_response(
+            adapters, message, conversation_id, history  # type: ignore
+        )
     # validate agent response
     if not await proxy.valid_message(agent_response):
         log.error(f"Agent response not allowed: {agent_response}")
-        raise HTTPException(status_code=HTTPStatus.CONFLICT)
+        agent_response = await adapters.get_topic_from_conversation(history)
     # convert agent response to response model object
     converted_response = adapters.convert_agent_model_to_response(
-        conversation_id, message, agent_response, history, history_limit=5
+        conversation_id, message, agent_response, history, history_limit=5  # type: ignore
     )
     log.debug(f"Agent response now is stored in db")
     return converted_response
